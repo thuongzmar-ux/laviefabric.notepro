@@ -26,6 +26,7 @@
       y: 40,
       customer: 'C Dung',
       fabric: 'Thun loang 822-10#',
+      showSummary: true,
       colorTheme: 'red',
       fontSize: 32,
       paddingX: 20,
@@ -51,6 +52,25 @@
       height: 0
     },
 
+    // Banner 3: Fabric Specifications (Khổ, Định lượng, Thành phần)
+    fabricSpecs: {
+      enabled: false,
+      x: 80,
+      y: 320,
+      composition: '95% Cotton 5% Spandex',
+      width: 'Khổ 1m65',
+      weight: '240gsm (2m8/kg)',
+      notes: 'Co giãn 4 chiều, may đầm & áo polo',
+      colorTheme: 'dark',
+      fontSize: 22,
+      paddingX: 18,
+      paddingY: 14,
+      borderRadius: 8,
+      width: 0,
+      height: 0,
+      positioned: false
+    },
+
     // Brand & Hotline Badge
     brandBadge: {
       enabled: true,
@@ -63,7 +83,7 @@
       positioned: false
     },
 
-    // Items list: { id, type: 'tick'|'box'|'box_dot'|'badge', x, y, width, height, text, colorTheme, scale }
+    // Items list: { id, type: 'tick'|'box'|'box_dot'|'badge'|'arrow', x, y, ... }
     items: [],
 
     // Selection & Manipulation
@@ -216,7 +236,8 @@
     box: 'Khung đỏ (2)',
     box_dot: 'Khung+Chấm (3)',
     badge: 'Thẻ chữ (4)',
-    combo: 'Cả cụm (5)'
+    combo: 'Cả cụm (5)',
+    arrow: 'Mũi tên (6)'
   };
 
   // Chuyển công cụ + cập nhật UI buttons + cursor
@@ -353,6 +374,7 @@
       items: JSON.parse(JSON.stringify(state.items)),
       banner: { ...state.banner },
       priceBanner: { ...state.priceBanner },
+      fabricSpecs: { ...state.fabricSpecs },
       brandBadge: { ...state.brandBadge }
     };
     state.history.push(snapshot);
@@ -369,6 +391,7 @@
     state.items = previous.items;
     state.banner = previous.banner;
     state.priceBanner = previous.priceBanner;
+    if (previous.fabricSpecs) state.fabricSpecs = previous.fabricSpecs;
     if (previous.brandBadge) state.brandBadge = previous.brandBadge;
     deselectItem();
     render();
@@ -698,6 +721,74 @@
       });
     });
 
+    // Toggle tổng số lượng trên Banner
+    const toggleBannerSum = document.getElementById('toggle-banner-sum');
+    if (toggleBannerSum) {
+      toggleBannerSum.addEventListener('change', (e) => {
+        state.banner.showSummary = e.target.checked;
+        render();
+        scheduleSaveImageHistory();
+      });
+    }
+
+    // Fabric Specs Controls (Thẻ thông số vải)
+    const toggleFabricSpecs = document.getElementById('toggle-fabric-specs');
+    const inputSpecComp = document.getElementById('input-spec-comp');
+    const inputSpecWidth = document.getElementById('input-spec-width');
+    const inputSpecWeight = document.getElementById('input-spec-weight');
+    const inputSpecNotes = document.getElementById('input-spec-notes');
+
+    if (toggleFabricSpecs) {
+      toggleFabricSpecs.addEventListener('change', (e) => {
+        state.fabricSpecs.enabled = e.target.checked;
+        if (e.target.checked && !state.fabricSpecs.positioned) {
+          state.fabricSpecs.x = state.img ? state.img.naturalWidth * 0.04 : 80;
+          state.fabricSpecs.y = state.img ? state.img.naturalHeight * 0.55 : 320;
+          state.fabricSpecs.positioned = true;
+        }
+        render();
+        scheduleSaveImageHistory();
+      });
+    }
+    if (inputSpecComp) {
+      inputSpecComp.addEventListener('input', (e) => {
+        state.fabricSpecs.composition = e.target.value;
+        render();
+        scheduleSaveImageHistory();
+      });
+    }
+    if (inputSpecWidth) {
+      inputSpecWidth.addEventListener('input', (e) => {
+        state.fabricSpecs.width = e.target.value;
+        render();
+        scheduleSaveImageHistory();
+      });
+    }
+    if (inputSpecWeight) {
+      inputSpecWeight.addEventListener('input', (e) => {
+        state.fabricSpecs.weight = e.target.value;
+        render();
+        scheduleSaveImageHistory();
+      });
+    }
+    if (inputSpecNotes) {
+      inputSpecNotes.addEventListener('input', (e) => {
+        state.fabricSpecs.notes = e.target.value;
+        render();
+        scheduleSaveImageHistory();
+      });
+    }
+
+    document.querySelectorAll('[data-specs-color]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-specs-color]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.fabricSpecs.colorTheme = btn.dataset.specsColor;
+        render();
+        scheduleSaveImageHistory();
+      });
+    });
+
     // Brand & Watermark Controls
     if (toggleBrandBadge) {
       toggleBrandBadge.addEventListener('change', (e) => {
@@ -859,6 +950,10 @@
           setActiveTool('combo');
           showToast('🔧 Cả cụm  [5]');
           break;
+        case '6':
+          setActiveTool('arrow');
+          showToast('🔧 Mũi tên đỏ  [6]');
+          break;
 
         // --- Escape: Đóng card -> Bỏ chọn -> Về con trỏ Chọn ---
         case 'escape':
@@ -1002,9 +1097,21 @@
       return;
     }
 
-    // 4. Xóa Note / Tick / Box trên ảnh
+    // 3.5 Xóa Thẻ Thông Số Vải
+    if (state.selectedId === 'fabricSpecs') {
+      state.fabricSpecs.enabled = false;
+      const togSpecs = document.getElementById('toggle-fabric-specs');
+      if (togSpecs) togSpecs.checked = false;
+      deselectItem();
+      render();
+      showToast('✓ Đã xóa Thẻ Thông Số Vải');
+      scheduleSaveImageHistory();
+      return;
+    }
+
+    // 4. Xóa Note / Tick / Box / Mũi tên trên ảnh
     const item = getSelectedItem();
-    const itemDesc = item ? (item.type === 'tick' ? 'Tick đỏ' : item.type === 'badge' ? `Thẻ "${item.text}"` : 'Khung viền') : 'đối tượng';
+    const itemDesc = item ? (item.type === 'tick' ? 'Tick đỏ' : item.type === 'arrow' ? 'Mũi tên' : item.type === 'badge' ? `Thẻ "${item.text}"` : 'Khung viền') : 'đối tượng';
     state.items = state.items.filter(i => i.id !== state.selectedId);
     deselectItem();
     render();
@@ -1061,6 +1168,9 @@
       inspectorTickControls.classList.remove('hidden');
       tickSizeSlider.value = Math.round((item.scale || 1.0) * 100);
       tickSizeVal.textContent = `${tickSizeSlider.value}%`;
+      hideFloatingCard();
+    } else if (item.type === 'arrow') {
+      inspectorType.textContent = 'Đang chọn: Mũi tên chỉ điểm';
       hideFloatingCard();
     }
 
@@ -1595,6 +1705,17 @@
       return;
     }
 
+    // 2.7 Check Fabric Specs Card
+    if (state.fabricSpecs && state.fabricSpecs.enabled && isInsideBox(pos, state.fabricSpecs)) {
+      state.isDragging = true;
+      state.selectedId = 'fabricSpecs';
+      state.dragStartPos = pos;
+      state.dragOriginalItem = { ...state.fabricSpecs };
+      if (originalEvent.cancelable) originalEvent.preventDefault();
+      render();
+      return;
+    }
+
     // 3. Check Resize Handle of selected Box
     const selected = getSelectedItem();
     if (selected && (selected.type === 'box' || selected.type === 'box_dot')) {
@@ -1615,6 +1736,19 @@
       if (badgeHandle) {
         state.isDragging = true;
         state.selectedHandle = badgeHandle;
+        state.dragStartPos = pos;
+        state.dragOriginalItem = { ...selected };
+        if (originalEvent.cancelable) originalEvent.preventDefault();
+        return;
+      }
+    }
+
+    // 4.5 Check Handle of selected Arrow (head or tail)
+    if (selected && selected.type === 'arrow') {
+      const arrowHandle = hitTestArrowHandle(pos, selected);
+      if (arrowHandle) {
+        state.isDragging = true;
+        state.selectedHandle = arrowHandle;
         state.dragStartPos = pos;
         state.dragOriginalItem = { ...selected };
         if (originalEvent.cancelable) originalEvent.preventDefault();
@@ -1726,6 +1860,22 @@
       state.items.push(newBox, newBadge);
       selectItem(newBadge.id);
       showToast('Đã dán Khung & Thẻ');
+    } else if (state.currentTool === 'arrow') {
+      const arrowLen = Math.max(70, canvas.width * 0.08);
+      const newArrow = {
+        id: 'arrow_' + Date.now(),
+        type: 'arrow',
+        x: pos.x,
+        y: pos.y,
+        dx: -arrowLen * 0.85,
+        dy: -arrowLen * 0.55,
+        colorTheme: 'red',
+        scale: 1.0,
+        text: ''
+      };
+      state.items.push(newArrow);
+      selectItem(newArrow.id);
+      showToast('Đã dán Mũi tên chỉ điểm');
     }
 
     state.isDragging = true;
@@ -1793,6 +1943,13 @@
       return;
     }
 
+    if (state.selectedId === 'fabricSpecs') {
+      state.fabricSpecs.x = state.dragOriginalItem.x + dx;
+      state.fabricSpecs.y = state.dragOriginalItem.y + dy;
+      render();
+      return;
+    }
+
     const item = getSelectedItem();
     if (!item) return;
 
@@ -1823,6 +1980,19 @@
         sidebarBadgeScaleSlider.value = roundedPercent;
         sidebarBadgeScaleVal.textContent = `${roundedPercent}%`;
         updateFloatingCardPosition(item);
+      } else if (item.type === 'arrow') {
+        const orig = state.dragOriginalItem;
+        if (state.selectedHandle === 'arrow_head') {
+          // Dragging head: moves head, tail stays at fixed position (orig.x + orig.dx)
+          item.x = orig.x + dx;
+          item.y = orig.y + dy;
+          item.dx = (orig.x + orig.dx) - item.x;
+          item.dy = (orig.y + orig.dy) - item.y;
+        } else if (state.selectedHandle === 'arrow_tail') {
+          // Dragging tail: head stays fixed, tail moves
+          item.dx = orig.dx + dx;
+          item.dy = orig.dy + dy;
+        }
       }
     } else {
       // MOVING Item
@@ -1893,8 +2063,33 @@
         if (Math.hypot(pos.x - it.x, pos.y - it.y) <= threshold) {
           return it;
         }
+      } else if (it.type === 'arrow') {
+        const head = { x: it.x, y: it.y };
+        const tail = { x: it.x + (it.dx !== undefined ? it.dx : -65), y: it.y + (it.dy !== undefined ? it.dy : -55) };
+        const d = distToSegment(pos, head, tail);
+        const threshold = Math.max(16, canvas.width * 0.024 * (it.scale || 1.0));
+        if (d <= threshold) {
+          return it;
+        }
       }
     }
+    return null;
+  }
+
+  function distToSegment(p, v, w) {
+    const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
+    if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+  }
+
+  function hitTestArrowHandle(pos, arrowItem) {
+    const handleRadius = Math.max(14, canvas.width * 0.016);
+    const head = { x: arrowItem.x, y: arrowItem.y };
+    const tail = { x: arrowItem.x + (arrowItem.dx !== undefined ? arrowItem.dx : -65), y: arrowItem.y + (arrowItem.dy !== undefined ? arrowItem.dy : -55) };
+    if (Math.hypot(pos.x - head.x, pos.y - head.y) <= handleRadius * 1.5) return 'arrow_head';
+    if (Math.hypot(pos.x - tail.x, pos.y - tail.y) <= handleRadius * 1.5) return 'arrow_tail';
     return null;
   }
 
@@ -1977,9 +2172,18 @@
       }
     }
 
+    if (selected && selected.type === 'arrow') {
+      const arrowHandle = hitTestArrowHandle(pos, selected);
+      if (arrowHandle) {
+        canvas.style.cursor = 'crosshair';
+        return;
+      }
+    }
+
     if (findItemAt(pos) || 
         (state.banner.enabled && isInsideBox(pos, state.banner)) || 
         (state.priceBanner.enabled && isInsideBox(pos, state.priceBanner)) ||
+        (state.fabricSpecs && state.fabricSpecs.enabled && isInsideBox(pos, state.fabricSpecs)) ||
         (state.brandBadge.enabled && isInsideBox(pos, state.brandBadge))) {
       canvas.style.cursor = 'move';
     } else {
@@ -2008,6 +2212,11 @@
       drawPriceBanner(state.priceBanner, state.selectedId === 'priceBanner');
     }
 
+    // 3.4 Draw Fabric Specifications Card
+    if (state.fabricSpecs && state.fabricSpecs.enabled) {
+      drawFabricSpecs(state.fabricSpecs, state.selectedId === 'fabricSpecs');
+    }
+
     // 3.5 Draw Brand & Hotline Badge (Thẻ thương hiệu góc ảnh)
     if (state.brandBadge.enabled) {
       drawBrandBadge(state.brandBadge, state.selectedId === 'brandBadge');
@@ -2022,8 +2231,13 @@
         drawBox(item, isSelected);
       } else if (item.type === 'badge') {
         drawBadge(item, isSelected);
+      } else if (item.type === 'arrow') {
+        drawArrow(item, isSelected);
       }
     });
+
+    // Update real-time summary in sidebar
+    updateSidebarOrderSummary();
   }
 
   function drawBanner(b, isSelected) {
@@ -2046,9 +2260,26 @@
     const padY = b.paddingY * state.globalScale;
     const gap = 8 * state.globalScale;
 
-    const textWidth = Math.max(titleMetrics.width, subMetrics.width);
+    // Tự động tính tổng đơn hàng trên ảnh
+    const summary = calculateOrderSummary();
+    const showSum = (b.showSummary !== false) && (summary.swatchCount > 0);
+    const sumSize = fontSize * 0.82;
+    let sumText = '';
+    let sumMetricsWidth = 0;
+    if (showSum) {
+      const parts = [];
+      if (summary.treeCount > 0) parts.push(`${summary.treeCount} cây`);
+      if (summary.meterCount > 0) parts.push(`${summary.meterCount}m`);
+      if (summary.kgCount > 0) parts.push(`${summary.kgCount}kg`);
+      sumText = `⚡ Tổng: ${parts.length ? parts.join(' + ') : `${summary.swatchCount} mục`} (${summary.swatchCount} màu)`;
+      ctx.font = `bold ${sumSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+      sumMetricsWidth = ctx.measureText(sumText).width + 24 * state.globalScale;
+    }
+
+    const textWidth = Math.max(titleMetrics.width, subMetrics.width, sumMetricsWidth);
     const boxWidth = textWidth + padX * 2;
-    const boxHeight = titleSize + subSize + gap + padY * 2;
+    const sumExtraHeight = showSum ? (sumSize + gap + 10 * state.globalScale) : 0;
+    const boxHeight = titleSize + subSize + gap + padY * 2 + sumExtraHeight;
 
     b.width = boxWidth;
     b.height = boxHeight;
@@ -2076,6 +2307,25 @@
 
     ctx.font = `bold ${subSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.fillText(b.fabric, b.x + boxWidth / 2, b.y + padY + titleSize + gap);
+
+    if (showSum && sumText) {
+      const sumPillY = b.y + padY + titleSize + gap + subSize + gap;
+      const pillW = sumMetricsWidth;
+      const pillH = sumSize + 10 * state.globalScale;
+      const pillX = b.x + (boxWidth - pillW) / 2;
+
+      // Dark contrasting pill inside banner
+      ctx.fillStyle = isRed ? '#ffffff' : '#111827';
+      ctx.beginPath();
+      roundRect(ctx, pillX, sumPillY, pillW, pillH, 5 * state.globalScale);
+      ctx.fill();
+
+      ctx.fillStyle = isRed ? '#e01a22' : '#ffd000';
+      ctx.font = `bold ${sumSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(sumText, b.x + boxWidth / 2, sumPillY + pillH / 2);
+    }
 
     ctx.restore();
   }
@@ -2383,6 +2633,275 @@
     ctx.closePath();
   }
 
+  // Draw Arrow Tool (Mũi tên chỉ điểm ô màu / chi tiết vải)
+  function drawArrow(item, isSelected) {
+    const scale = (item.scale || 1.0) * state.globalScale;
+    const headX = item.x;
+    const headY = item.y;
+    const tailX = item.x + (item.dx !== undefined ? item.dx : -65);
+    const tailY = item.y + (item.dy !== undefined ? item.dy : -55);
+
+    const angle = Math.atan2(headY - tailY, headX - tailX);
+    const length = Math.hypot(headX - tailX, headY - tailY);
+    const arrowHeadLen = Math.max(18, Math.min(52, length * 0.38, canvas.width * 0.028 * scale));
+    const lineWidth = Math.max(4.5, canvas.width * 0.0075 * scale);
+
+    ctx.save();
+
+    // Shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 10 * scale;
+    ctx.shadowOffsetY = 3 * scale;
+
+    const mainColor = item.colorTheme === 'yellow' ? '#ffd000' : '#e61924';
+    ctx.strokeStyle = mainColor;
+    ctx.fillStyle = mainColor;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Shaft line
+    const shaftEndX = headX - Math.cos(angle) * (arrowHeadLen * 0.45);
+    const shaftEndY = headY - Math.sin(angle) * (arrowHeadLen * 0.45);
+
+    ctx.beginPath();
+    ctx.moveTo(tailX, tailY);
+    ctx.lineTo(shaftEndX, shaftEndY);
+    ctx.stroke();
+
+    // Arrowhead polygon
+    const arrowAngle = Math.PI / 6.5; // ~28 degrees
+    ctx.beginPath();
+    ctx.moveTo(headX, headY);
+    ctx.lineTo(
+      headX - arrowHeadLen * Math.cos(angle - arrowAngle),
+      headY - arrowHeadLen * Math.sin(angle - arrowAngle)
+    );
+    ctx.lineTo(
+      headX - (arrowHeadLen * 0.72) * Math.cos(angle),
+      headY - (arrowHeadLen * 0.72) * Math.sin(angle)
+    );
+    ctx.lineTo(
+      headX - arrowHeadLen * Math.cos(angle + arrowAngle),
+      headY - arrowHeadLen * Math.sin(angle + arrowAngle)
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    // White outline for contrast
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = Math.max(1.5, lineWidth * 0.35);
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+
+    // Tail dot
+    ctx.fillStyle = mainColor;
+    ctx.beginPath();
+    ctx.arc(tailX, tailY, lineWidth * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Selection handles
+    if (isSelected) {
+      const handleR = Math.max(7, canvas.width * 0.009);
+
+      // Dashed guide line
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(tailX, tailY);
+      ctx.lineTo(headX, headY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Head handle (aiming target)
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#4f46e5';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(headX, headY, handleR + 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#4f46e5';
+      ctx.beginPath();
+      ctx.arc(headX, headY, handleR * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tail handle
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#4f46e5';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(tailX, tailY, handleR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // Draw Fabric Specs (Thẻ Thông Số Vải: Thành phần, Định lượng, Khổ vải)
+  function drawFabricSpecs(s, isSelected) {
+    if (!s || !s.enabled) return;
+
+    const scale = state.globalScale;
+    const baseDim = Math.max(canvas.width, canvas.height);
+    const titleFontSize = Math.max(16, Math.round(baseDim * 0.019 * scale));
+    const rowFontSize = Math.max(13, Math.round(baseDim * 0.015 * scale));
+
+    const rows = [];
+    if (s.composition && s.composition.trim()) rows.push({ icon: '🧪', label: 'Thành phần', val: s.composition.trim() });
+    if (s.width && s.width.trim()) rows.push({ icon: '📏', label: 'Khổ vải', val: s.width.trim() });
+    if (s.weight && s.weight.trim()) rows.push({ icon: '⚖️', label: 'Định lượng', val: s.weight.trim() });
+    if (s.notes && s.notes.trim()) rows.push({ icon: '💡', label: 'Ghi chú', val: s.notes.trim() });
+
+    if (rows.length === 0) return;
+
+    ctx.save();
+
+    ctx.font = `bold ${titleFontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    let maxContentWidth = ctx.measureText('🧵 THÔNG TIN VẢI').width + 40 * scale;
+
+    ctx.font = `500 ${rowFontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    rows.forEach(r => {
+      const w = ctx.measureText(`${r.icon} ${r.label}: ${r.val}`).width;
+      if (w > maxContentWidth) maxContentWidth = w;
+    });
+
+    const padX = Math.round(18 * scale);
+    const padY = Math.round(14 * scale);
+    const rowGap = Math.round(8 * scale);
+    const headerHeight = Math.round(titleFontSize + 12 * scale);
+
+    const cardWidth = Math.round(maxContentWidth + padX * 2);
+    const cardHeight = Math.round(padY * 2 + headerHeight + rows.length * (rowFontSize + rowGap));
+
+    s.width = cardWidth;
+    s.height = cardHeight;
+
+    // Card background & shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 14 * scale;
+    ctx.shadowOffsetY = 5 * scale;
+
+    const isDark = (s.colorTheme || 'dark') === 'dark';
+    ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(30, 58, 138, 0.95)';
+    ctx.beginPath();
+    roundRect(ctx, s.x, s.y, cardWidth, cardHeight, 10 * scale);
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+
+    // Border
+    ctx.lineWidth = (isSelected ? 3.0 : 1.5) * scale;
+    ctx.strokeStyle = isSelected ? '#6366f1' : (isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(147, 197, 253, 0.4)');
+    ctx.stroke();
+
+    // Header Title
+    ctx.font = `bold ${titleFontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.fillStyle = isDark ? '#f6d365' : '#93c5fd';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('🧵 THÔNG TIN VẢI', s.x + padX, s.y + padY);
+
+    // Divider line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(s.x + padX, s.y + padY + headerHeight - 4 * scale);
+    ctx.lineTo(s.x + cardWidth - padX, s.y + padY + headerHeight - 4 * scale);
+    ctx.stroke();
+
+    // Spec Rows
+    let currentY = s.y + padY + headerHeight + 2 * scale;
+    rows.forEach(r => {
+      ctx.font = `600 ${rowFontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+      ctx.fillStyle = '#cbd5e1';
+      const labelText = `${r.icon} ${r.label}: `;
+      ctx.fillText(labelText, s.x + padX, currentY);
+
+      const labelW = ctx.measureText(labelText).width;
+
+      ctx.font = `bold ${rowFontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(r.val, s.x + padX + labelW, currentY);
+
+      currentY += rowFontSize + rowGap;
+    });
+
+    ctx.restore();
+  }
+
+  // Auto-Sum Order Calculation (Tự động cộng dồn số cây đã tick)
+  function calculateOrderSummary() {
+    let treeCount = 0;
+    let meterCount = 0;
+    let kgCount = 0;
+    let swatchCount = 0;
+
+    state.items.forEach(item => {
+      if (item.type === 'tick') {
+        treeCount += 1;
+        swatchCount += 1;
+      } else if (item.type === 'badge') {
+        swatchCount += 1;
+        const text = (item.text || '').trim();
+        const treeMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(?:c|cây|cay)\b/i);
+        const meterMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(?:m|mét|met)\b/i);
+        const kgMatch = text.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
+        const numMatch = text.match(/\b(\d+(?:[.,]\d+)?)\b/);
+
+        if (treeMatch) {
+          treeCount += parseFloat(treeMatch[1].replace(',', '.'));
+        } else if (meterMatch) {
+          meterCount += parseFloat(meterMatch[1].replace(',', '.'));
+        } else if (kgMatch) {
+          kgCount += parseFloat(kgMatch[1].replace(',', '.'));
+        } else if (numMatch) {
+          treeCount += parseFloat(numMatch[1].replace(',', '.'));
+        } else {
+          treeCount += 1;
+        }
+      } else if (item.type === 'box' || item.type === 'box_dot') {
+        // Chỉ tính nếu không có thẻ chữ nằm ngay bên trong khung
+        const hasNearbyBadge = state.items.some(
+          b => b.type === 'badge' && Math.hypot(b.x - item.x, b.y - item.y) < Math.max(item.width, item.height) * 0.7
+        );
+        if (!hasNearbyBadge) {
+          swatchCount += 1;
+          treeCount += 1;
+        }
+      }
+    });
+
+    return { treeCount, meterCount, kgCount, swatchCount };
+  }
+
+  function updateSidebarOrderSummary() {
+    const sumBadge = document.getElementById('live-order-sum-badge');
+    const sumTextEl = document.getElementById('live-order-sum-text');
+    if (!sumBadge && !sumTextEl) return;
+
+    const summary = calculateOrderSummary();
+    if (summary.swatchCount === 0) {
+      if (sumBadge) sumBadge.textContent = '0 màu';
+      if (sumTextEl) sumTextEl.textContent = 'Chưa chấm màu nào';
+      return;
+    }
+
+    const parts = [];
+    if (summary.treeCount > 0) parts.push(`${summary.treeCount} cây`);
+    if (summary.meterCount > 0) parts.push(`${summary.meterCount}m`);
+    if (summary.kgCount > 0) parts.push(`${summary.kgCount}kg`);
+
+    const summaryStr = parts.length > 0 ? parts.join(' + ') : `${summary.swatchCount} mục`;
+
+    if (sumBadge) sumBadge.textContent = `${summary.swatchCount} màu`;
+    if (sumTextEl) sumTextEl.textContent = `${summaryStr} (${summary.swatchCount} màu)`;
+  }
+
   // ============================================================
   // QUẢN LÝ LỊCH SỬ 10 ẢNH GẦN NHẤT (INDEXEDDB - TỐI ĐA 10 ẢNH)
   // ============================================================
@@ -2554,6 +3073,7 @@
       items: JSON.parse(JSON.stringify(state.items)),
       banner: JSON.parse(JSON.stringify(state.banner)),
       priceBanner: JSON.parse(JSON.stringify(state.priceBanner)),
+      fabricSpecs: JSON.parse(JSON.stringify(state.fabricSpecs || {})),
       brandBadge: JSON.parse(JSON.stringify(state.brandBadge)),
       parsedItems: JSON.parse(JSON.stringify(state.parsedItems || []))
     };
@@ -2655,6 +3175,7 @@
     state.items = JSON.parse(JSON.stringify(item.items || []));
     if (item.banner) state.banner = JSON.parse(JSON.stringify(item.banner));
     if (item.priceBanner) state.priceBanner = JSON.parse(JSON.stringify(item.priceBanner));
+    if (item.fabricSpecs) state.fabricSpecs = JSON.parse(JSON.stringify(item.fabricSpecs));
     if (item.brandBadge) state.brandBadge = JSON.parse(JSON.stringify(item.brandBadge));
     if (item.parsedItems) state.parsedItems = JSON.parse(JSON.stringify(item.parsedItems));
 
@@ -2679,6 +3200,12 @@
     const togBrand = document.getElementById('toggle-brand-badge');
     const bName = document.getElementById('input-brand-name');
     const bPhone = document.getElementById('input-brand-phone');
+    const togSpecs = document.getElementById('toggle-fabric-specs');
+    const specComp = document.getElementById('input-spec-comp');
+    const specWidth = document.getElementById('input-spec-width');
+    const specWeight = document.getElementById('input-spec-weight');
+    const specNotes = document.getElementById('input-spec-notes');
+    const togBannerSum = document.getElementById('toggle-banner-sum');
 
     if (custInput && state.banner) custInput.value = state.banner.customer || '';
     if (fabInput && state.banner) fabInput.value = state.banner.fabric || '';
@@ -2691,6 +3218,13 @@
     if (bName && state.brandBadge) bName.value = state.brandBadge.name || '';
     if (bPhone && state.brandBadge) bPhone.value = state.brandBadge.phone || '';
     if (togBrand && state.brandBadge) togBrand.checked = !!state.brandBadge.enabled;
+
+    if (togSpecs && state.fabricSpecs) togSpecs.checked = !!state.fabricSpecs.enabled;
+    if (specComp && state.fabricSpecs) specComp.value = state.fabricSpecs.composition || '';
+    if (specWidth && state.fabricSpecs) specWidth.value = state.fabricSpecs.width || '';
+    if (specWeight && state.fabricSpecs) specWeight.value = state.fabricSpecs.weight || '';
+    if (specNotes && state.fabricSpecs) specNotes.value = state.fabricSpecs.notes || '';
+    if (togBannerSum && state.banner) togBannerSum.checked = state.banner.showSummary !== false;
   }
 
   function formatHistoryTime(ts) {

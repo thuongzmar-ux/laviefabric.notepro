@@ -123,6 +123,10 @@
                 <span class="tool-icon text-red">▢ + 🏷️</span>
                 <span class="tool-label">Cả cụm</span>
               </button>
+              <button class="tool-btn" data-tool="arrow" data-key="6" title="Mũi tên đỏ chỉ điểm chính xác ô màu / chi tiết vải  [Phím 6]">
+                <span class="tool-icon text-red">➔</span>
+                <span class="tool-label">Mũi tên</span>
+              </button>
             </div>
             <div class="stamp-mode-box">
               <label class="stamp-mode-label" title="Sau khi dán 1 tem trên ảnh, tự động chuyển về Con trỏ Chọn để không bị bấm nhầm đẻ thêm tem">
@@ -131,6 +135,22 @@
                 <span class="mode-text">Tự về Con trỏ Chọn sau khi dán</span>
               </label>
             </div>
+          </div>
+
+          <!-- Thống kê tổng số lượng đã chốt tự động -->
+          <div class="panel-card auto-sum-card">
+            <div class="card-title-between">
+              <h3>⚡ Tổng đơn đã chấm:</h3>
+              <span class="badge-tag" id="live-order-sum-badge">0 màu</span>
+            </div>
+            <div class="auto-sum-display">
+              <span class="auto-sum-main" id="live-order-sum-text">Chưa chấm màu nào</span>
+            </div>
+            <label class="toggle-option" style="margin-top: 4px;">
+              <input type="checkbox" id="toggle-banner-sum" checked>
+              <span class="toggle-switch"></span>
+              <span class="toggle-label font-sm">In dòng Tổng đơn lên ảnh</span>
+            </label>
           </div>
 
           <!-- Section: Ô NHẬP & SỬA CHỮ SIÊU TO RÕ RÀNG -->
@@ -311,6 +331,41 @@
               </div>
             </div>
           </div>
+
+          <!-- Thẻ Thông Số Vải (Khổ, Định lượng, Thành phần) -->
+          <div class="panel-card">
+            <div class="banner-subcard-header">
+              <label class="toggle-option">
+                <input type="checkbox" id="toggle-fabric-specs">
+                <span class="toggle-switch"></span>
+                <span class="toggle-label font-bold">Thẻ Thông Số Vải (Khổ, Đ.Lượng...)</span>
+              </label>
+              <div class="banner-color-picker">
+                <button class="btn-color-dot dark active" data-specs-color="dark" title="Thẻ tối sang trọng"></button>
+                <button class="btn-color-dot blue" data-specs-color="blue" title="Thẻ xanh dương"></button>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="input-spec-comp">🧪 Thành phần</label>
+                <input type="text" id="input-spec-comp" placeholder="VD: 95% Cotton 5% Spandex" value="95% Cotton 5% Spandex">
+              </div>
+              <div class="form-group">
+                <label for="input-spec-width">📏 Khổ vải</label>
+                <input type="text" id="input-spec-width" placeholder="VD: Khổ 1m65" value="Khổ 1m65">
+              </div>
+              <div class="form-group">
+                <label for="input-spec-weight">⚖️ Định lượng</label>
+                <input type="text" id="input-spec-weight" placeholder="VD: 240gsm (2m8/kg)" value="240gsm (2m8/kg)">
+              </div>
+              <div class="form-group">
+                <label for="input-spec-notes">💡 Ứng dụng / Ghi chú</label>
+                <input type="text" id="input-spec-notes" placeholder="VD: May đầm, áo polo, co giãn 4c" value="Co giãn 4 chiều, may đầm & áo polo">
+              </div>
+            </div>
+            <p class="hint-text">💡 Thẻ thông số vải có thể kéo thả di chuyển đến bất kỳ góc nào trên ảnh.</p>
+          </div>
         </div>
 
         <!-- TAB 4: DÁN TIN NHẮN ZALO -->
@@ -377,6 +432,7 @@
             <button class="btn-mini-tool" data-mini-tool="box_dot" title="Khung + Chấm [3]">▢•</button>
             <button class="btn-mini-tool" data-mini-tool="badge" title="Thẻ chữ [4]">🏷️</button>
             <button class="btn-mini-tool" data-mini-tool="combo" title="Cả cụm [5]">▢+🏷️</button>
+            <button class="btn-mini-tool" data-mini-tool="arrow" title="Mũi tên [6]">➔</button>
           </div>
 
           <div class="quick-text-inline">
