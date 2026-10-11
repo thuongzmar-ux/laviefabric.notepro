@@ -44,3 +44,27 @@ Xám rêu 08: 1 cây
 ### 4. Xuất ảnh & Gửi khách siêu tốc
 - **"Copy gửi Zalo"**: 1 click là ảnh được sao chép vào bộ nhớ tạm $\rightarrow$ Sang Zalo bấm `Ctrl+V` gửi ngay, không tốn dung lượng ổ cứng.
 - **"Tải ảnh về"**: Tải ảnh PNG chất lượng cao, độ phân giải gốc 100% không bị mờ vỡ nét.
+
+---
+
+## 🌐 Hướng dẫn đẩy lên Vercel
+
+### Cách 1: Chạy 1-Click (Nhanh nhất)
+- Nhấp đúp chuột vào file `Deploy_Vercel.command`.
+- Cửa sổ Terminal sẽ mở ra và tự động chạy triển khai. Nếu chưa đăng nhập, trình duyệt sẽ mở để bạn xác thực tài khoản Vercel. Nhấn `Enter` theo hướng dẫn là xong!
+
+### Cách 2: Triển khai qua lệnh Terminal
+```bash
+cd "/Users/macbook/Downloads/CV_Update/Lavie/App chèn note tự động"
+npx vercel --prod
+```
+
+### Cách 3: Đẩy lên GitHub rồi kết nối Vercel
+1. Đẩy code lên GitHub repository:
+   ```bash
+   git remote add origin <link-repo-github-cua-ban>
+   git branch -M main
+   git push -u origin main
+   ```
+2. Truy cập [vercel.com](https://vercel.com) $\rightarrow$ Bấm **Add New Project** $\rightarrow$ Chọn repo trên GitHub $\rightarrow$ Bấm **Deploy**.
+
