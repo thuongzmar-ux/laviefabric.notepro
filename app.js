@@ -77,7 +77,11 @@
     parsedItems: [],
 
     // Undo history
-    history: []
+    history: [],
+
+    // Image Session & History (tối đa 10 ảnh)
+    currentSessionId: null,
+    isRestoringSession: false
   };
 
   // DOM Elements
@@ -192,6 +196,15 @@
   const btnCopy = document.getElementById('btn-copy-image');
   const btnDownload = document.getElementById('btn-download-image');
   const toastEl = document.getElementById('toast');
+
+  // History DOM Elements (Lưu trữ 10 ảnh)
+  const historyBadge = document.getElementById('history-badge');
+  const historyStatusTag = document.getElementById('history-status-tag');
+  const historyItemsContainer = document.getElementById('history-items-container');
+  const btnSaveCurrentManual = document.getElementById('btn-save-current-manual');
+  const btnClearHistory = document.getElementById('btn-clear-history');
+  const welcomeRecentHistory = document.getElementById('welcome-recent-history');
+  const welcomeRecentGrid = document.getElementById('welcome-recent-grid');
 
   // ============================================================
   // MODULE-LEVEL HELPERS (dùng được từ keyboard shortcuts)
@@ -317,11 +330,12 @@
     }
   }
 
-  // Initialize - Giao diện mở đầu nạp ảnh, không tự nạp mẫu
+  // Initialize - Giao diện mở đầu nạp ảnh, tải lịch sử 10 ảnh gần nhất
   function init() {
     setupEventListeners();
     setActiveTool('select');
     updateImageLoadedUI();
+    refreshHistoryUI();
   }
 
   // Toast
@@ -343,6 +357,7 @@
     };
     state.history.push(snapshot);
     if (state.history.length > 30) state.history.shift();
+    scheduleSaveImageHistory();
   }
 
   function undo() {
@@ -358,6 +373,7 @@
     deselectItem();
     render();
     showToast('Đã hoàn tác thao tác');
+    scheduleSaveImageHistory();
   }
 
   // Setup Event Listeners
@@ -413,6 +429,22 @@
     // File upload (Header button)
     if (headerFileInput) {
       headerFileInput.addEventListener('change', handleFileSelect);
+    }
+
+    // Image History buttons (Tối đa 10 ảnh)
+    if (btnSaveCurrentManual) {
+      btnSaveCurrentManual.addEventListener('click', () => {
+        saveCurrentImageHistory(false);
+      });
+    }
+    if (btnClearHistory) {
+      btnClearHistory.addEventListener('click', async () => {
+        if (confirm('Bạn có chắc muốn xóa toàn bộ lịch sử 10 ảnh không?')) {
+          await clearAllHistory();
+          await refreshHistoryUI();
+          showToast('Đã xóa sạch lịch sử ảnh');
+        }
+      });
     }
 
     // Paste clipboard (Ctrl+V từ Zalo / clipboard)
@@ -856,9 +888,10 @@
           break;
         }
 
-        // --- Xóa element đang chọn ---
-        case 'Delete':
-        case 'Backspace':
+        // --- Xóa element đang chọn (Phím Delete hoặc Backspace) ---
+        case 'delete':
+        case 'backspace':
+          e.preventDefault();
           deleteSelectedItem();
           break;
 
@@ -875,19 +908,20 @@
           break;
 
         // --- Di chuyển element đang chọn bằng phím mũi tên ---
-        case 'ArrowUp':
-        case 'ArrowDown':
-        case 'ArrowLeft':
-        case 'ArrowRight': {
+        case 'arrowup':
+        case 'arrowdown':
+        case 'arrowleft':
+        case 'arrowright': {
           const sel = getSelectedItem();
           if (!sel) break;
           e.preventDefault();
           const step = e.shiftKey ? 10 : 2; // Shift = di chuyển nhanh hơn
           saveHistory();
-          if (e.key === 'ArrowUp')    sel.y -= step;
-          if (e.key === 'ArrowDown')  sel.y += step;
-          if (e.key === 'ArrowLeft')  sel.x -= step;
-          if (e.key === 'ArrowRight') sel.x += step;
+          const k = e.key.toLowerCase();
+          if (k === 'arrowup')    sel.y -= step;
+          if (k === 'arrowdown')  sel.y += step;
+          if (k === 'arrowleft')  sel.x -= step;
+          if (k === 'arrowright') sel.x += step;
           render();
           if (sel.type === 'badge') updateFloatingCardPosition(sel);
           break;
@@ -895,7 +929,6 @@
 
         // --- Phím F: Focus vào ô nhập chữ nhanh ---
         case 'f':
-        case 'F':
           e.preventDefault();
           canvasTopTextInput.focus();
           canvasTopTextInput.select();
@@ -904,7 +937,6 @@
 
         // --- Phím U: Undo (thay thế) ---
         case 'u':
-        case 'U':
           undo();
           break;
 
@@ -923,13 +955,61 @@
     return state.items.find(i => i.id === state.selectedId);
   }
 
+  // Xóa bất kỳ đối tượng nào đang được chọn (Note, Khung, Thẻ, hoặc Banner)
   function deleteSelectedItem() {
-    if (!state.selectedId) return;
+    if (!state.selectedId) {
+      if (!floatingEditCard.classList.contains('hidden')) {
+        hideFloatingCard();
+        return;
+      }
+      return;
+    }
+
     saveHistory();
+
+    // 1. Xóa Bảng Khách & Mã vải
+    if (state.selectedId === 'banner') {
+      state.banner.enabled = false;
+      const togBanner = document.getElementById('toggle-banner');
+      if (togBanner) togBanner.checked = false;
+      deselectItem();
+      render();
+      showToast('✓ Đã xóa Bảng Khách & Mã vải');
+      scheduleSaveImageHistory();
+      return;
+    }
+
+    // 2. Xóa Bảng Giá
+    if (state.selectedId === 'priceBanner') {
+      state.priceBanner.enabled = false;
+      const togPrice = document.getElementById('toggle-price-banner');
+      if (togPrice) togPrice.checked = false;
+      deselectItem();
+      render();
+      showToast('✓ Đã xóa Bảng Giá');
+      scheduleSaveImageHistory();
+      return;
+    }
+
+    // 3. Xóa Thẻ Logo & Hotline
+    if (state.selectedId === 'brandBadge') {
+      state.brandBadge.enabled = false;
+      if (toggleBrandBadge) toggleBrandBadge.checked = false;
+      deselectItem();
+      render();
+      showToast('✓ Đã xóa Thẻ Logo & Hotline');
+      scheduleSaveImageHistory();
+      return;
+    }
+
+    // 4. Xóa Note / Tick / Box trên ảnh
+    const item = getSelectedItem();
+    const itemDesc = item ? (item.type === 'tick' ? 'Tick đỏ' : item.type === 'badge' ? `Thẻ "${item.text}"` : 'Khung viền') : 'đối tượng';
     state.items = state.items.filter(i => i.id !== state.selectedId);
     deselectItem();
     render();
-    showToast('Đã xóa đối tượng');
+    showToast(`✓ Đã xóa ${itemDesc}`);
+    scheduleSaveImageHistory();
   }
 
   function selectItem(id) {
@@ -1307,9 +1387,15 @@
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
 
+      if (!state.isRestoringSession) {
+        state.currentSessionId = 'hist_' + Date.now();
+      }
+      state.isRestoringSession = false;
+
       updateImageLoadedUI();
       render();
       fitToScreen();
+      scheduleSaveImageHistory();
       if (callback) callback();
       else showToast('✓ Đã nạp ảnh thành công!');
     };
@@ -2297,10 +2383,345 @@
     ctx.closePath();
   }
 
+  // ============================================================
+  // QUẢN LÝ LỊCH SỬ 10 ẢNH GẦN NHẤT (INDEXEDDB - TỐI ĐA 10 ẢNH)
+  // ============================================================
+  const DB_NAME = 'FabricNotePro_DB';
+  const DB_VERSION = 1;
+  const STORE_NAME = 'image_history';
+  const MAX_HISTORY_ITEMS = 10;
+  let saveHistoryDebounceTimer = null;
+
+  function openHistoryDB() {
+    return new Promise((resolve) => {
+      if (!window.indexedDB) {
+        resolve(null);
+        return;
+      }
+      try {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            store.createIndex('timestamp', 'timestamp', { unique: false });
+          }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = () => resolve(null);
+      } catch (err) {
+        resolve(null);
+      }
+    });
+  }
+
+  async function getHistoryList() {
+    const db = await openHistoryDB();
+    if (!db) {
+      try {
+        const raw = localStorage.getItem('fabricnote_history_fb');
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) { return []; }
+    }
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const list = req.result || [];
+          list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+          resolve(list);
+        };
+        req.onerror = () => resolve([]);
+      } catch (err) {
+        resolve([]);
+      }
+    });
+  }
+
+  async function saveHistoryEntry(entry) {
+    const db = await openHistoryDB();
+    if (!db) {
+      try {
+        let list = JSON.parse(localStorage.getItem('fabricnote_history_fb') || '[]');
+        list = list.filter(item => item.id !== entry.id);
+        list.unshift(entry);
+        if (list.length > MAX_HISTORY_ITEMS) list = list.slice(0, MAX_HISTORY_ITEMS);
+        localStorage.setItem('fabricnote_history_fb', JSON.stringify(list));
+      } catch (e) {}
+      return;
+    }
+
+    return new Promise(async (resolve) => {
+      try {
+        const all = await getHistoryList();
+        const remaining = all.filter(item => item.id !== entry.id);
+        remaining.unshift(entry);
+
+        // Giữ tối đa 10 ảnh, nếu vượt quá 10 thì xóa ảnh cũ nhất
+        const toKeep = remaining.slice(0, MAX_HISTORY_ITEMS);
+        const toDelete = remaining.slice(MAX_HISTORY_ITEMS);
+
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.put(entry);
+
+        for (const item of toDelete) {
+          store.delete(item.id);
+        }
+
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (err) {
+        resolve(false);
+      }
+    });
+  }
+
+  async function deleteHistoryEntry(id) {
+    const db = await openHistoryDB();
+    if (!db) {
+      try {
+        let list = JSON.parse(localStorage.getItem('fabricnote_history_fb') || '[]');
+        list = list.filter(item => item.id !== id);
+        localStorage.setItem('fabricnote_history_fb', JSON.stringify(list));
+      } catch (e) {}
+      return;
+    }
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(id);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  async function clearAllHistory() {
+    const db = await openHistoryDB();
+    if (!db) {
+      try { localStorage.removeItem('fabricnote_history_fb'); } catch (e) {}
+      return;
+    }
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.clear();
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  function scheduleSaveImageHistory() {
+    if (!state.img || !state.imgSrc) return;
+    clearTimeout(saveHistoryDebounceTimer);
+    saveHistoryDebounceTimer = setTimeout(() => {
+      saveCurrentImageHistory(true);
+    }, 700);
+  }
+
+  async function saveCurrentImageHistory(silent = true) {
+    if (!state.img || !state.imgSrc) return;
+    if (!state.currentSessionId) {
+      state.currentSessionId = 'hist_' + Date.now();
+    }
+
+    let thumbnail = '';
+    try {
+      const thumbCanvas = document.createElement('canvas');
+      const maxDim = 180;
+      const ratio = Math.min(maxDim / canvas.width, maxDim / canvas.height, 1);
+      thumbCanvas.width = Math.max(1, Math.round(canvas.width * ratio));
+      thumbCanvas.height = Math.max(1, Math.round(canvas.height * ratio));
+      const tCtx = thumbCanvas.getContext('2d');
+      tCtx.drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+      thumbnail = thumbCanvas.toDataURL('image/jpeg', 0.8);
+    } catch (e) {}
+
+    const entry = {
+      id: state.currentSessionId,
+      timestamp: Date.now(),
+      customer: state.banner.customer || 'Khách',
+      fabric: state.banner.fabric || 'Bảng màu vải',
+      itemCount: state.items.length,
+      thumbnail: thumbnail,
+      imgSrc: state.imgSrc,
+      items: JSON.parse(JSON.stringify(state.items)),
+      banner: JSON.parse(JSON.stringify(state.banner)),
+      priceBanner: JSON.parse(JSON.stringify(state.priceBanner)),
+      brandBadge: JSON.parse(JSON.stringify(state.brandBadge)),
+      parsedItems: JSON.parse(JSON.stringify(state.parsedItems || []))
+    };
+
+    await saveHistoryEntry(entry);
+    await refreshHistoryUI();
+    if (!silent) showToast('✓ Đã lưu ảnh vào lịch sử');
+  }
+
+  async function refreshHistoryUI() {
+    const list = await getHistoryList();
+    const count = list.length;
+
+    // Cập nhật badges
+    if (historyBadge) historyBadge.textContent = count;
+    if (historyStatusTag) historyStatusTag.textContent = `${count}/${MAX_HISTORY_ITEMS} ảnh`;
+    if (btnClearHistory) btnClearHistory.classList.toggle('hidden', count === 0);
+
+    // Render danh sách trong Tab Lịch Sử
+    if (historyItemsContainer) {
+      if (count === 0) {
+        historyItemsContainer.innerHTML = `
+          <div class="history-empty-state">
+            <span>Chưa có ảnh nào trong lịch sử (Tối đa ${MAX_HISTORY_ITEMS} ảnh)</span>
+          </div>`;
+      } else {
+        historyItemsContainer.innerHTML = list.map(item => {
+          const isCurrent = item.id === state.currentSessionId;
+          const timeStr = formatHistoryTime(item.timestamp);
+          return `
+            <div class="history-card ${isCurrent ? 'active-session' : ''}" data-hist-id="${item.id}">
+              <img class="history-card-thumb" src="${item.thumbnail || item.imgSrc}" alt="thumb">
+              <div class="history-card-info">
+                <span class="history-card-title">${escapeHtml(item.customer)} - ${escapeHtml(item.fabric)}</span>
+                <span class="history-card-subtitle">${timeStr}</span>
+                <div class="history-card-meta">
+                  <span class="history-card-notes">${item.itemCount || 0} notes</span>
+                  ${isCurrent ? '<span style="color: #4ade80; font-weight:700;">● Đang mở</span>' : '<span style="color:#60a5fa;">Bấm để mở ✏️</span>'}
+                </div>
+              </div>
+              <button class="history-card-del-btn" data-del-id="${item.id}" title="Xóa ảnh này khỏi lịch sử">🗑️</button>
+            </div>
+          `;
+        }).join('');
+
+        historyItemsContainer.querySelectorAll('.history-card').forEach(card => {
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('.history-card-del-btn')) return;
+            const histId = card.dataset.histId;
+            const targetItem = list.find(it => it.id === histId);
+            if (targetItem) loadHistorySession(targetItem);
+          });
+        });
+
+        historyItemsContainer.querySelectorAll('.history-card-del-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const delId = btn.dataset.delId;
+            await deleteHistoryEntry(delId);
+            if (state.currentSessionId === delId) {
+              state.currentSessionId = 'hist_' + Date.now();
+            }
+            await refreshHistoryUI();
+            showToast('Đã xóa 1 ảnh khỏi lịch sử');
+          });
+        });
+      }
+    }
+
+    // Render danh sách trên Welcome Screen
+    if (welcomeRecentHistory && welcomeRecentGrid) {
+      if (count === 0) {
+        welcomeRecentHistory.classList.add('hidden');
+      } else {
+        welcomeRecentHistory.classList.remove('hidden');
+        welcomeRecentGrid.innerHTML = list.map(item => `
+          <div class="welcome-recent-item" data-hist-id="${item.id}">
+            <img src="${item.thumbnail || item.imgSrc}" alt="thumb">
+            <span class="welcome-recent-item-title">${escapeHtml(item.customer)} - ${escapeHtml(item.fabric)}</span>
+            <span class="welcome-recent-item-sub">${item.itemCount || 0} notes • ${formatHistoryTime(item.timestamp)}</span>
+          </div>
+        `).join('');
+
+        welcomeRecentGrid.querySelectorAll('.welcome-recent-item').forEach(el => {
+          el.addEventListener('click', () => {
+            const histId = el.dataset.histId;
+            const targetItem = list.find(it => it.id === histId);
+            if (targetItem) loadHistorySession(targetItem);
+          });
+        });
+      }
+    }
+  }
+
+  function loadHistorySession(item) {
+    if (!item) return;
+    state.currentSessionId = item.id;
+    state.isRestoringSession = true;
+    state.items = JSON.parse(JSON.stringify(item.items || []));
+    if (item.banner) state.banner = JSON.parse(JSON.stringify(item.banner));
+    if (item.priceBanner) state.priceBanner = JSON.parse(JSON.stringify(item.priceBanner));
+    if (item.brandBadge) state.brandBadge = JSON.parse(JSON.stringify(item.brandBadge));
+    if (item.parsedItems) state.parsedItems = JSON.parse(JSON.stringify(item.parsedItems));
+
+    syncFormInputsWithState();
+
+    loadImageSource(item.imgSrc, () => {
+      render();
+      fitToScreen();
+      showToast(`✓ Đã mở lại ảnh "${item.customer} - ${item.fabric}"`);
+      const stampTab = document.querySelector('.tab-btn[data-tab="stamp"]');
+      if (stampTab) stampTab.click();
+    });
+  }
+
+  function syncFormInputsWithState() {
+    const custInput = document.getElementById('input-customer');
+    const fabInput = document.getElementById('input-fabric');
+    const togBanner = document.getElementById('toggle-banner');
+    const togPrice = document.getElementById('toggle-price-banner');
+    const pLine1 = document.getElementById('input-price-line1');
+    const pLine2 = document.getElementById('input-price-line2');
+    const togBrand = document.getElementById('toggle-brand-badge');
+    const bName = document.getElementById('input-brand-name');
+    const bPhone = document.getElementById('input-brand-phone');
+
+    if (custInput && state.banner) custInput.value = state.banner.customer || '';
+    if (fabInput && state.banner) fabInput.value = state.banner.fabric || '';
+    if (togBanner && state.banner) togBanner.checked = !!state.banner.enabled;
+
+    if (pLine1 && state.priceBanner) pLine1.value = state.priceBanner.line1 || '';
+    if (pLine2 && state.priceBanner) pLine2.value = state.priceBanner.line2 || '';
+    if (togPrice && state.priceBanner) togPrice.checked = !!state.priceBanner.enabled;
+
+    if (bName && state.brandBadge) bName.value = state.brandBadge.name || '';
+    if (bPhone && state.brandBadge) bPhone.value = state.brandBadge.phone || '';
+    if (togBrand && state.brandBadge) togBrand.checked = !!state.brandBadge.enabled;
+  }
+
+  function formatHistoryTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMin = Math.floor((now - d) / 60000);
+    if (diffMin < 1) return 'Vừa xong';
+    if (diffMin < 60) return `${diffMin} phút trước`;
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    if (d.toDateString() === now.toDateString()) {
+      return `Hôm nay ${h}:${m}`;
+    }
+    return `${d.getDate()}/${d.getMonth() + 1} ${h}:${m}`;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   // Copy Image
   async function copyCanvasToClipboard() {
     if (!state.img) return;
     deselectItem();
+    saveCurrentImageHistory(true);
 
     try {
       canvas.toBlob(async (blob) => {
@@ -2326,6 +2747,7 @@
   function downloadCanvasImage() {
     if (!state.img) return;
     deselectItem();
+    saveCurrentImageHistory(true);
 
     const link = document.createElement('a');
     const safeCust = (state.banner.customer || 'Khach').replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, '_');

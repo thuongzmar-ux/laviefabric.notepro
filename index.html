@@ -70,6 +70,11 @@
             <span class="tab-icon">📋</span>
             <span class="tab-title">Dán Zalo</span>
           </button>
+          <button class="tab-btn" data-tab="history">
+            <span class="tab-icon">🕒</span>
+            <span class="tab-title">Lịch Sử</span>
+            <span class="tab-badge" id="history-badge">0</span>
+          </button>
         </div>
 
         <!-- TAB 1: CHẤM ĐƠN -->
@@ -328,6 +333,34 @@
           </div>
         </div>
 
+        <!-- TAB 5: LỊCH SỬ 10 ẢNH GẦN NHẤT -->
+        <div id="tab-content-history" class="tab-content">
+          <div class="panel-card">
+            <div class="card-title-between">
+              <h3>Lịch Sử 10 Ảnh Gần Nhất</h3>
+              <span class="badge-tag" id="history-status-tag">0/10 ảnh</span>
+            </div>
+            <p class="hint-text">
+              💡 Lưu tự động tối đa 10 ảnh gần nhất kèm đầy đủ note & thông tin. Cứ đủ 10 ảnh thì ảnh cũ nhất sẽ tự động được xóa. Click ảnh để mở sửa tiếp bất cứ lúc nào!
+            </p>
+
+            <div id="history-items-container" class="history-list-box">
+              <div class="history-empty-state">
+                <span>Chưa có ảnh nào trong lịch sử</span>
+              </div>
+            </div>
+
+            <div class="history-actions-row">
+              <button id="btn-save-current-manual" class="btn btn-sm btn-secondary" style="width: 100%;">
+                💾 Lưu bản hiện tại vào Lịch sử
+              </button>
+              <button id="btn-clear-history" class="btn btn-sm btn-outline-danger hidden" style="width: 100%; margin-top: 6px;">
+                🗑️ Xóa sạch lịch sử
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="sidebar-footer">
           <span class="creator-tag">✨ Make by Huong Lavie</span>
         </div>
@@ -411,6 +444,14 @@
                     <p>Ảnh nét gốc kèm hotline Lavie</p>
                   </div>
                 </div>
+              </div>
+
+              <!-- Danh sách 10 ảnh gần đây để mở sửa nhanh -->
+              <div id="welcome-recent-history" class="welcome-recent-section hidden">
+                <div class="welcome-recent-title">
+                  <span>🕒 10 Ảnh Đã Làm Gần Nhất (Bấm ảnh để mở sửa tiếp):</span>
+                </div>
+                <div id="welcome-recent-grid" class="welcome-recent-grid"></div>
               </div>
             </div>
           </div>
