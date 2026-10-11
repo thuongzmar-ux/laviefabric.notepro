@@ -1,0 +1,4 @@
+.DS_Store
+*.metadata.json
+.vercel
+node_modules

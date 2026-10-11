@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FabricNote Pro - Vải Lavie</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Navbar -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo-lavie">
+          <img src="assets/logo_lavie.png" alt="Lavie Logo">
+        </div>
+        <div>
+          <h1 class="brand-title">Vải Lavie <span>Note Pro</span></h1>
+          <p class="brand-subtitle">Hương - Vải Lavie • Hotline: 0977.855.122</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Nút tải ảnh mới ở Header -->
+        <label id="btn-header-upload" class="btn btn-outline btn-header-file" title="Tải ảnh mới từ máy tính">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+          <span class="btn-text">Tải ảnh mới</span>
+          <input type="file" id="header-file-input" accept="image/*" class="file-input-hidden">
+        </label>
+
+        <button id="btn-undo" class="btn btn-ghost" title="Hoàn tác (Ctrl+Z)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+          <span class="btn-text">Hoàn tác</span>
+        </button>
+        <button id="btn-copy-image" class="btn btn-primary" title="Sao chép ảnh đã gắn note để dán ngay vào Zalo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          Copy gửi Zalo
+        </button>
+        <button id="btn-download-image" class="btn btn-success" title="Tải ảnh độ nét gốc  [Ctrl+S]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="btn-text">Tải về</span>
+        </button>
+        <button class="btn-shortcut-help" onclick="toggleShortcutHelp()" title="Bảng phím tắt [?]">
+          ⌨️ <span class="btn-text">Phím tắt</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace-container">
+      <!-- Left Sidebar with Tabs -->
+      <aside class="sidebar-panel">
+        <div class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="stamp">
+            <span class="tab-icon">⚡</span>
+            <span class="tab-title">Chấm Đơn</span>
+          </button>
+          <button class="tab-btn" data-tab="watermark">
+            <span class="tab-icon">🛡️</span>
+            <span class="tab-title">Logo & SĐT</span>
+          </button>
+          <button class="tab-btn" data-tab="banners">
+            <span class="tab-icon">🏷️</span>
+            <span class="tab-title">Tên & Giá</span>
+          </button>
+          <button class="tab-btn" data-tab="order">
+            <span class="tab-icon">📋</span>
+            <span class="tab-title">Dán Zalo</span>
+          </button>
+        </div>
+
+        <!-- TAB 1: CHẤM ĐƠN -->
+        <div id="tab-content-stamp" class="tab-content active">
+          <!-- Nạp ảnh nhanh -->
+          <div class="panel-card compact-upload">
+            <div id="drop-zone" class="drop-zone compact">
+              <input type="file" id="file-input" accept="image/*" class="file-input-hidden">
+              <div class="drop-zone-content-inline">
+                <svg class="upload-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>
+                </svg>
+                <span class="drop-text-inline">Bấm chọn ảnh hoặc <strong>Ctrl+V dán từ Zalo</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Chọn công cụ -->
+          <div class="panel-card">
+            <div class="card-title-between">
+              <h3>1. Chọn kiểu đánh dấu:</h3>
+              <span class="tag-status-tool" id="active-tool-status">Con trỏ Chọn (V)</span>
+            </div>
+            <div class="tools-grid">
+              <button class="tool-btn active" data-tool="select" data-key="V" title="Con trỏ Chọn & Di chuyển: Click để chọn/kéo/sửa, không sợ click nhầm dán thêm [Phím V hoặc Esc]">
+                <span class="tool-icon text-blue">↖</span>
+                <span class="tool-label">Con trỏ Chọn</span>
+              </button>
+              <button class="tool-btn" data-tool="tick" data-key="1" title="Chỉ đóng dấu Tick đỏ  [Phím 1]">
+                <span class="tool-icon text-red">✓</span>
+                <span class="tool-label">Tick đỏ</span>
+              </button>
+              <button class="tool-btn" data-tool="box" data-key="2" title="Chỉ vẽ khung viền đỏ bo góc  [Phím 2]">
+                <span class="tool-icon text-red">▢</span>
+                <span class="tool-label">Khung đỏ</span>
+              </button>
+              <button class="tool-btn" data-tool="box_dot" data-key="3" title="Khung đỏ có chấm tâm  [Phím 3]">
+                <span class="tool-icon text-red">▢ •</span>
+                <span class="tool-label">Khung + Chấm</span>
+              </button>
+              <button class="tool-btn" data-tool="badge" data-key="4" title="Chỉ dán thẻ chữ/số lượng riêng  [Phím 4]">
+                <span class="tool-icon text-yellow">🏷️</span>
+                <span class="tool-label">Thẻ chữ</span>
+              </button>
+              <button class="tool-btn" data-tool="combo" data-key="5" title="Dán cả Khung + Thẻ chữ cùng lúc  [Phím 5]">
+                <span class="tool-icon text-red">▢ + 🏷️</span>
+                <span class="tool-label">Cả cụm</span>
+              </button>
+            </div>
+            <div class="stamp-mode-box">
+              <label class="stamp-mode-label" title="Sau khi dán 1 tem trên ảnh, tự động chuyển về Con trỏ Chọn để không bị bấm nhầm đẻ thêm tem">
+                <input type="checkbox" id="auto-revert-select" checked>
+                <span class="mode-checkbox-custom"></span>
+                <span class="mode-text">Tự về Con trỏ Chọn sau khi dán</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Section: Ô NHẬP & SỬA CHỮ SIÊU TO RÕ RÀNG -->
+          <div class="panel-card highlight-text-card">
+            <div class="card-title-between">
+              <h3>2. Nội dung chữ / Số lượng:</h3>
+              <span class="tag-status" id="text-sync-status">Đang dùng</span>
+            </div>
+
+            <div class="big-input-wrapper">
+              <input type="text" id="primary-text-input" class="big-text-input" placeholder="Nhập chữ, vd: 50m, 100m, 1 cây..." value="50m">
+              <button id="btn-clear-text" class="btn-clear-input" title="Xóa chữ">✕</button>
+            </div>
+
+            <!-- Thanh kéo to/nhỏ cỡ thẻ chuẩn bị chấm -->
+            <div class="sidebar-size-slider-row">
+              <div class="slider-header-small">
+                <span>Kéo cỡ thẻ note to / nhỏ:</span>
+                <span id="sidebar-badge-scale-val">100%</span>
+              </div>
+              <div class="slider-with-btns">
+                <button id="btn-sidebar-scale-minus" class="btn-step-sm">A-</button>
+                <input type="range" id="sidebar-badge-scale-slider" min="50" max="350" value="100" class="stepper-slider">
+                <button id="btn-sidebar-scale-plus" class="btn-step-sm">A+</button>
+              </div>
+            </div>
+
+            <!-- Fast Quick Select Chips -->
+            <div class="quick-chips-grid">
+              <button class="chip-qty-btn active" data-text="50m">50m</button>
+              <button class="chip-qty-btn" data-text="100m">100m</button>
+              <button class="chip-qty-btn" data-text="90m">90m</button>
+              <button class="chip-qty-btn" data-text="110m">110m</button>
+              <button class="chip-qty-btn" data-text="1 cây">1 cây</button>
+              <button class="chip-qty-btn" data-text="2 cây">2 cây</button>
+              <button class="chip-qty-btn" data-text="6m">6m</button>
+              <button class="chip-qty-btn" data-text="1c">1c</button>
+            </div>
+          </div>
+
+          <!-- Inspector Panel -->
+          <div id="inspector-card" class="panel-card inspector-panel-highlight hidden">
+            <div class="inspector-header">
+              <span id="inspector-type" class="inspector-type-pill">Đang chọn: Khung đỏ</span>
+              <button id="btn-inspector-delete" class="btn-delete-pill" title="Xóa phần tử đang chọn">
+                🗑️ Xóa đối tượng này
+              </button>
+            </div>
+
+            <!-- Frame Width & Height controls -->
+            <div id="inspector-frame-controls" class="inspector-controls-group">
+              <div class="size-stepper-row">
+                <span class="stepper-label">Chiều rộng khung:</span>
+                <div class="stepper-controls">
+                  <button class="btn-step" id="btn-w-minus">-15</button>
+                  <span id="frame-w-val" class="stepper-val">120px</span>
+                  <button class="btn-step" id="btn-w-plus">+15</button>
+                </div>
+              </div>
+              <input type="range" id="frame-w-slider" min="30" max="500" value="120" class="stepper-slider">
+
+              <div class="size-stepper-row">
+                <span class="stepper-label">Chiều cao khung:</span>
+                <div class="stepper-controls">
+                  <button class="btn-step" id="btn-h-minus">-15</button>
+                  <span id="frame-h-val" class="stepper-val">80px</span>
+                  <button class="btn-step" id="btn-h-plus">+15</button>
+                </div>
+              </div>
+              <input type="range" id="frame-h-slider" min="30" max="500" value="80" class="stepper-slider">
+            </div>
+
+            <!-- Badge controls -->
+            <div id="inspector-badge-controls" class="inspector-controls-group hidden">
+              <div class="badge-inspector-row">
+                <label>Sửa chữ trên thẻ:</label>
+                <input type="text" id="inspector-badge-text" class="inspector-input-big" placeholder="Nhập chữ/số lượng...">
+              </div>
+              <div class="badge-options-row">
+                <span>Màu thẻ:</span>
+                <div class="banner-color-picker">
+                  <button class="btn-color-dot yellow active" data-badge-color="yellow" title="Nền vàng chữ đen"></button>
+                  <button class="btn-color-dot red" data-badge-color="red" title="Nền đỏ chữ trắng"></button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tick controls -->
+            <div id="inspector-tick-controls" class="inspector-controls-group hidden">
+              <div class="size-stepper-row">
+                <span class="stepper-label">Cỡ dấu Tick đỏ:</span>
+                <span id="tick-size-val" class="stepper-val">100%</span>
+              </div>
+              <input type="range" id="tick-size-slider" min="50" max="300" value="100" class="stepper-slider">
+            </div>
+          </div>
+
+          <div class="panel-card-footer">
+            <button id="btn-clear-notes" class="btn btn-outline-danger btn-sm w-full">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Xóa tất cả các note đã chấm
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 2: LOGO & SĐT THƯƠNG HIỆU LAVIE -->
+        <div id="tab-content-watermark" class="tab-content">
+          <!-- Thẻ Thông Tin Hotline & Logo Góc Ảnh -->
+          <div class="panel-card">
+            <div class="banner-subcard-header">
+              <label class="toggle-option">
+                <input type="checkbox" id="toggle-brand-badge" checked>
+                <span class="toggle-switch"></span>
+                <span class="toggle-label font-bold">Thẻ Logo & Hotline (Góc ảnh)</span>
+              </label>
+            </div>
+            
+            <div class="form-group">
+              <label>Tên & Thương hiệu:</label>
+              <input type="text" id="input-brand-name" value="Hương - Vải Lavie">
+            </div>
+            <div class="form-group">
+              <label>Số điện thoại / Hotline:</label>
+              <input type="text" id="input-brand-phone" value="0977.855.122">
+            </div>
+            <p class="hint-text">💡 Thẻ này có Logo Lavie mạ vàng + Tên + SĐT, bạn có thể bấm và kéo thả di chuyển đến bất kỳ góc nào trên ảnh tùy ý!</p>
+          </div>
+        </div>
+
+        <!-- TAB 3: BẢNG TÊN KHÁCH & BẢNG GIÁ -->
+        <div id="tab-content-banners" class="tab-content">
+          <div class="panel-card">
+            <div class="banner-subcard-header">
+              <label class="toggle-option">
+                <input type="checkbox" id="toggle-banner" checked>
+                <span class="toggle-switch"></span>
+                <span class="toggle-label font-bold">Bảng Khách & Mã vải</span>
+              </label>
+              <div class="banner-color-picker">
+                <button class="btn-color-dot red active" data-color="red" title="Nền đỏ chữ trắng"></button>
+                <button class="btn-color-dot yellow" data-color="yellow" title="Nền vàng chữ đen"></button>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="input-customer">Tên khách</label>
+                <input type="text" id="input-customer" placeholder="Ví dụ: C Dung" value="C Dung">
+              </div>
+              <div class="form-group">
+                <label for="input-fabric">Tên / Mã vải</label>
+                <input type="text" id="input-fabric" placeholder="Ví dụ: Tơ nhăn S5040#" value="Tơ nhăn S5040#">
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="banner-subcard-header">
+              <label class="toggle-option">
+                <input type="checkbox" id="toggle-price-banner" checked>
+                <span class="toggle-switch"></span>
+                <span class="toggle-label font-bold">Bảng Giá / Ghi chú phụ</span>
+              </label>
+              <div class="banner-color-picker">
+                <button class="btn-color-dot yellow active" data-price-color="yellow" title="Nền vàng"></button>
+                <button class="btn-color-dot red" data-price-color="red" title="Nền đỏ"></button>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="input-price-line1">Dòng 1</label>
+                <input type="text" id="input-price-line1" placeholder="Ví dụ: Sỉ 78k/m" value="Sỉ 78k/m">
+              </div>
+              <div class="form-group">
+                <label for="input-price-line2">Dòng 2</label>
+                <input type="text" id="input-price-line2" placeholder="Ví dụ: mẫu 93k/m" value="mẫu 93k/m">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: DÁN TIN NHẮN ZALO -->
+        <div id="tab-content-order" class="tab-content">
+          <div class="panel-card">
+            <div class="card-title">
+              <h3>Dán Tin Nhắn Đơn Hàng</h3>
+              <span class="badge-tag">Tự bóc tách</span>
+            </div>
+
+            <div class="quick-paste-box">
+              <textarea id="order-paste-input" rows="4" placeholder="Dán tin nhắn Zalo vào đây..."></textarea>
+              <button id="btn-parse-order" class="btn btn-sm btn-secondary">
+                ⚡ Phân tích & Tự điền
+              </button>
+            </div>
+
+            <div id="order-chips-list" class="chips-container">
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center: Interactive Canvas Area -->
+      <section class="canvas-workspace">
+        <!-- Floating Quick Bar on top of Canvas -->
+        <div class="floating-quick-bar hidden">
+          <div class="quick-tool-selector">
+            <button class="btn-mini-tool active" data-mini-tool="select" title="Con trỏ Chọn [V]">↖ Chọn</button>
+            <button class="btn-mini-tool" data-mini-tool="tick" title="Tick đỏ [1]">✓</button>
+            <button class="btn-mini-tool" data-mini-tool="box" title="Khung đỏ [2]">▢</button>
+            <button class="btn-mini-tool" data-mini-tool="box_dot" title="Khung + Chấm [3]">▢•</button>
+            <button class="btn-mini-tool" data-mini-tool="badge" title="Thẻ chữ [4]">🏷️</button>
+            <button class="btn-mini-tool" data-mini-tool="combo" title="Cả cụm [5]">▢+🏷️</button>
+          </div>
+
+          <div class="quick-text-inline">
+            <span class="quick-text-label">Chữ:</span>
+            <input type="text" id="canvas-top-text-input" class="canvas-top-input" value="50m">
+          </div>
+
+          <div class="zoom-controls-mini">
+            <button id="btn-zoom-out" class="btn-mini-icon" title="Thu nhỏ (-)">-</button>
+            <span id="zoom-level">100%</span>
+            <button id="btn-zoom-in" class="btn-mini-icon" title="Phóng to (+)">+</button>
+            <button id="btn-zoom-fit" class="btn-mini-icon" title="Vừa màn hình">⛶</button>
+          </div>
+        </div>
+
+        <div class="canvas-viewport" id="viewport-container">
+          <!-- Giao diện mở đầu khi mới vào App (Chưa có ảnh) -->
+          <div id="welcome-upload-screen" class="welcome-upload-screen">
+            <div class="welcome-upload-card">
+              <div class="welcome-icon-circle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="welcome-cloud-hero">
+                  <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+                  <path d="M12 12v9"/>
+                  <path d="m16 16-4-4-4 4"/>
+                </svg>
+              </div>
+              <h2 class="welcome-heading">Tải Ảnh Bảng Màu Vải</h2>
+              <p class="welcome-desc">Bắt đầu chốt đơn & gắn số lượng bằng cách dán hoặc tải ảnh bảng màu:</p>
+
+              <!-- Khung nạp ảnh lớn đúng như ảnh chụp của bạn -->
+              <div id="welcome-drop-zone" class="welcome-drop-box">
+                <input type="file" id="welcome-file-input" accept="image/*" class="file-input-hidden">
+                <div class="welcome-drop-content">
+                  <svg class="welcome-icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+                    <path d="M12 12v9"/>
+                    <path d="m16 16-4-4-4 4"/>
+                  </svg>
+                  <div class="welcome-text-group">
+                    <span class="welcome-primary-text">Bấm chọn ảnh hoặc <strong>Ctrl+V dán từ Zalo</strong></span>
+                    <span class="welcome-hint-text">Hoặc kéo thả file ảnh (PNG, JPG) trực tiếp vào khung này</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="welcome-features-grid">
+                <div class="welcome-feature-card">
+                  <div class="feature-icon">📋</div>
+                  <div>
+                    <strong>Dán ảnh 1 giây</strong>
+                    <p>Chụp màn hình Zalo rồi bấm Ctrl+V</p>
+                  </div>
+                </div>
+                <div class="welcome-feature-card">
+                  <div class="feature-icon">✓</div>
+                  <div>
+                    <strong>Chấm đơn siêu tốc</strong>
+                    <p>Tick đỏ, khung viền, thẻ mét & cây</p>
+                  </div>
+                </div>
+                <div class="welcome-feature-card">
+                  <div class="feature-icon">🚀</div>
+                  <div>
+                    <strong>Copy gửi Zalo ngay</strong>
+                    <p>Ảnh nét gốc kèm hotline Lavie</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="canvas-wrapper" class="canvas-wrapper hidden">
+            <canvas id="main-canvas"></canvas>
+
+            <!-- Floating In-Place Element Editor -->
+            <div id="floating-edit-card" class="floating-edit-card hidden">
+              <div class="floating-edit-header">
+                <span>Sửa chữ trên thẻ:</span>
+                <button id="btn-floating-del" class="btn-del-mini" title="Xóa thẻ này">✕ Xóa</button>
+              </div>
+
+              <div class="floating-edit-body">
+                <input type="text" id="floating-text-input" class="floating-input-main" placeholder="Nhập chữ...  [Enter để lưu]" value="50m">
+                <button id="btn-floating-save" class="btn-floating-save-btn">Xong ✓</button>
+              </div>
+
+              <!-- Thanh kéo cỡ thẻ note -->
+              <div class="floating-size-section">
+                <div class="floating-size-header">
+                  <span>📐 Kéo cỡ thẻ note to / nhỏ:</span>
+                  <span id="floating-size-val">100%</span>
+                </div>
+                <div class="floating-size-row">
+                  <button id="btn-floating-size-down" class="btn-step-sm" title="Thu nhỏ thẻ">A-</button>
+                  <input type="range" id="floating-size-slider" min="50" max="350" value="100" class="floating-slider">
+                  <button id="btn-floating-size-up" class="btn-step-sm" title="Phóng to thẻ">A+</button>
+                </div>
+              </div>
+
+              <div class="floating-quick-suggestions">
+                <button class="btn-sug">50m</button>
+                <button class="btn-sug">100m</button>
+                <button class="btn-sug">90m</button>
+                <button class="btn-sug">110m</button>
+                <button class="btn-sug">1 cây</button>
+                <button class="btn-sug">2 cây</button>
+                <button class="btn-sug">6m</button>
+                <button class="btn-sug">1c</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
