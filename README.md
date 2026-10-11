@@ -1,4 +1,5 @@
 # FabricNote Pro - Tool Chèn Note Bảng Màu Vải Tự Động & Siêu Tốc
+*Make by Huong Lavie*
 
 Công cụ chuyên dụng dành cho shop vải, xưởng may và đại lý vải để chốt đơn, gắn note cây vải và xuất ảnh gửi khách hàng qua Zalo chỉ trong 5 giây.
 
