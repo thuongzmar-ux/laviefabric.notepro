@@ -226,6 +226,27 @@
   const welcomeRecentHistory = document.getElementById('welcome-recent-history');
   const welcomeRecentGrid = document.getElementById('welcome-recent-grid');
 
+  // Crop & Overlay Modal Elements
+  const headerOverlayInput = document.getElementById('header-overlay-input');
+  const tabOverlayInput = document.getElementById('tab-overlay-input');
+  const cropModal = document.getElementById('crop-modal');
+  const btnCropClose = document.getElementById('btn-crop-close');
+  const btnCropCancel = document.getElementById('btn-crop-cancel');
+  const btnCropApply = document.getElementById('btn-crop-apply');
+  const btnCropAsBase = document.getElementById('btn-crop-as-base');
+  const cropSourceImg = document.getElementById('crop-source-img');
+  const cropBox = document.getElementById('crop-box');
+  const cropStageContainer = document.getElementById('crop-stage-container');
+  const cropRatioButtons = document.querySelectorAll('.btn-crop-ratio');
+
+  // Inspector Overlay Controls
+  const inspectorOverlayControls = document.getElementById('inspector-overlay-controls');
+  const overlaySizeSlider = document.getElementById('overlay-size-slider');
+  const overlaySizeVal = document.getElementById('overlay-size-val');
+  const btnOverlayBorderWhite = document.getElementById('btn-overlay-border-white');
+  const btnOverlayBorderRed = document.getElementById('btn-overlay-border-red');
+  const btnOverlayBorderNone = document.getElementById('btn-overlay-border-none');
+
   // ============================================================
   // MODULE-LEVEL HELPERS (dùng được từ keyboard shortcuts)
   // ============================================================
@@ -294,7 +315,8 @@
             <div class="shortcut-section-title">Chỉnh sửa & Thao tác</div>
             <div class="shortcut-row"><kbd>Esc</kbd> <strong>Về Con trỏ Chọn</strong> / Bỏ chọn</div>
             <div class="shortcut-row"><kbd>Double-click</kbd> Sửa chữ ngay trên ảnh</div>
-            <div class="shortcut-row"><kbd>Enter</kbd> Lưu chữ (hoặc mở sửa thẻ)</div>
+            <div class="shortcut-row"><kbd>Shift</kbd>+<kbd>Enter</kbd> <strong>Xuống dòng khi note</strong></div>
+            <div class="shortcut-row"><kbd>Enter</kbd> Lưu chữ note đã sửa</div>
             <div class="shortcut-row"><kbd>Del</kbd> / <kbd>⌫</kbd> Xóa element đang chọn</div>
             <div class="shortcut-row"><kbd>F</kbd> Đổi nhanh số lượng / mét</div>
           </div>
@@ -308,11 +330,10 @@
           </div>
           <div class="shortcut-section">
             <div class="shortcut-section-title">Lịch sử & Xuất ảnh</div>
-            <div class="shortcut-row"><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>U</kbd> Hoàn tác (Undo)</div>
-            <div class="shortcut-row"><kbd>Ctrl</kbd>+<kbd>Y</kbd> Phục hồi (Redo)</div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>⌘Z</kbd> <strong>Hoàn tác (Undo)</strong></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd>+<kbd>V</kbd> <strong>Dán ảnh nền hoặc Chèn & Cắt ảnh đè</strong></div>
             <div class="shortcut-row"><kbd>Ctrl</kbd>+<kbd>C</kbd> Copy gửi ngay Zalo</div>
             <div class="shortcut-row"><kbd>Ctrl</kbd>+<kbd>S</kbd> Tải ảnh gốc về máy</div>
-            <div class="shortcut-row"><kbd>Ctrl</kbd>+<kbd>V</kbd> Dán ảnh trực tiếp từ Zalo</div>
             <div class="shortcut-row"><kbd>?</kbd> Mở / đóng bảng phím tắt</div>
           </div>
         </div>
@@ -354,6 +375,7 @@
   // Initialize - Giao diện mở đầu nạp ảnh, tải lịch sử 10 ảnh gần nhất
   function init() {
     setupEventListeners();
+    initCropModal();
     setActiveTool('select');
     updateImageLoadedUI();
     refreshHistoryUI();
@@ -368,10 +390,29 @@
     }, 3200);
   }
 
-  // History / Undo
+  // History / Undo (Hỗ trợ phím tắt Ctrl+Z)
   function saveHistory() {
     const snapshot = {
-      items: JSON.parse(JSON.stringify(state.items)),
+      items: state.items.map(it => {
+        if (it.type === 'overlay_image') {
+          return {
+            id: it.id,
+            type: it.type,
+            x: it.x,
+            y: it.y,
+            width: it.width,
+            height: it.height,
+            naturalWidth: it.naturalWidth,
+            naturalHeight: it.naturalHeight,
+            scale: it.scale || 1.0,
+            borderRadius: it.borderRadius,
+            borderWidth: it.borderWidth,
+            borderColor: it.borderColor,
+            imgSrc: it.imgSrc
+          };
+        }
+        return JSON.parse(JSON.stringify(it));
+      }),
       banner: { ...state.banner },
       priceBanner: { ...state.priceBanner },
       fabricSpecs: { ...state.fabricSpecs },
@@ -384,18 +425,26 @@
 
   function undo() {
     if (state.history.length === 0) {
-      showToast('Không có thao tác nào để hoàn tác', 'error');
+      showToast('Không có thao tác nào để hoàn tác (Ctrl+Z)', 'error');
       return;
     }
     const previous = state.history.pop();
-    state.items = previous.items;
+    state.items = (previous.items || []).map(it => {
+      if (it.type === 'overlay_image' && it.imgSrc) {
+        const im = new Image();
+        im.onload = () => render();
+        im.src = it.imgSrc;
+        it.img = im;
+      }
+      return it;
+    });
     state.banner = previous.banner;
     state.priceBanner = previous.priceBanner;
     if (previous.fabricSpecs) state.fabricSpecs = previous.fabricSpecs;
     if (previous.brandBadge) state.brandBadge = previous.brandBadge;
     deselectItem();
     render();
-    showToast('Đã hoàn tác thao tác');
+    showToast('↶ Đã hoàn tác (Ctrl+Z)');
     scheduleSaveImageHistory();
   }
 
@@ -470,18 +519,50 @@
       });
     }
 
-    // Paste clipboard (Ctrl+V từ Zalo / clipboard)
+    // Paste clipboard (Ctrl+V từ Zalo / clipboard - hỗ trợ ảnh chồng lên ảnh)
     window.addEventListener('paste', (e) => {
-      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+      const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
+      if (!clipboardData) return;
+
+      const items = clipboardData.items;
+      let imgFile = null;
       for (const item of items) {
-        if (item.type.indexOf('image') !== -1) {
-          loadFile(item.getAsFile());
-          showToast('✓ Đã dán ảnh từ clipboard Zalo!', 'success');
+        if (item.type && item.type.indexOf('image') !== -1) {
+          imgFile = item.getAsFile();
           break;
         }
       }
+
+      if (imgFile) {
+        e.preventDefault();
+        if (!state.img) {
+          loadFile(imgFile);
+          showToast('✓ Đã nạp ảnh bảng màu từ clipboard Zalo!', 'success');
+        } else {
+          // Khi đã có ảnh: mở Modal cắt & chèn ảnh chồng lên ảnh!
+          openCropOverlayModal(imgFile);
+        }
+      }
     });
+
+    if (headerOverlayInput) {
+      headerOverlayInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          openCropOverlayModal(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+    }
+
+    if (tabOverlayInput) {
+      tabOverlayInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          openCropOverlayModal(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+    }
 
     // Sample dropdown (nếu có trong DOM)
     if (btnSampleToggle) {
@@ -511,12 +592,12 @@
       btn.addEventListener('click', () => setActiveTool(btn.dataset.miniTool));
     });
 
-    // TEXT SYNCING
+    // TEXT SYNCING (Hỗ trợ xuống dòng khi note)
     function updateActiveText(newText) {
       state.currentQty = newText;
-      primaryTextInput.value = newText;
-      canvasTopTextInput.value = newText;
-      floatingTextInput.value = newText;
+      if (primaryTextInput && primaryTextInput.value !== newText) primaryTextInput.value = newText;
+      if (canvasTopTextInput && canvasTopTextInput.value !== newText) canvasTopTextInput.value = newText;
+      if (floatingTextInput && floatingTextInput.value !== newText) floatingTextInput.value = newText;
 
       chipQtyButtons.forEach(b => {
         b.classList.toggle('active', b.dataset.text === newText);
@@ -525,19 +606,29 @@
       const selected = getSelectedItem();
       if (selected && selected.type === 'badge') {
         selected.text = newText;
-        inspectorBadgeText.value = newText;
+        if (inspectorBadgeText && inspectorBadgeText.value !== newText) inspectorBadgeText.value = newText;
         render();
         updateFloatingCardPosition(selected);
       }
     }
 
-    primaryTextInput.addEventListener('input', (e) => updateActiveText(e.target.value));
-    canvasTopTextInput.addEventListener('input', (e) => updateActiveText(e.target.value));
-    floatingTextInput.addEventListener('input', (e) => updateActiveText(e.target.value));
+    if (primaryTextInput) primaryTextInput.addEventListener('input', (e) => updateActiveText(e.target.value));
+    if (canvasTopTextInput) canvasTopTextInput.addEventListener('input', (e) => updateActiveText(e.target.value));
+    if (floatingTextInput) {
+      floatingTextInput.addEventListener('input', (e) => updateActiveText(e.target.value));
+      floatingTextInput.addEventListener('keydown', (e) => {
+        // Shift+Enter = xuống dòng; Enter đơn lẻ = lưu & đóng
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          hideFloatingCard();
+          showToast('✓ Đã lưu chữ note');
+        }
+      });
+    }
 
     btnClearText.addEventListener('click', () => {
       updateActiveText('');
-      primaryTextInput.focus();
+      if (primaryTextInput) primaryTextInput.focus();
     });
 
     chipQtyButtons.forEach(btn => {
@@ -666,6 +757,52 @@
         render();
       }
     });
+
+    // Inspector Overlay Image Controls
+    if (overlaySizeSlider) {
+      overlaySizeSlider.addEventListener('input', (e) => {
+        const selected = getSelectedItem();
+        if (selected && selected.type === 'overlay_image') {
+          selected.scale = parseInt(e.target.value, 10) / 100;
+          if (overlaySizeVal) overlaySizeVal.textContent = `${e.target.value}%`;
+          render();
+        }
+      });
+    }
+
+    if (btnOverlayBorderWhite) {
+      btnOverlayBorderWhite.addEventListener('click', () => {
+        const selected = getSelectedItem();
+        if (selected && selected.type === 'overlay_image') {
+          saveHistory();
+          selected.borderColor = '#ffffff';
+          selected.borderWidth = 3;
+          render();
+        }
+      });
+    }
+    if (btnOverlayBorderRed) {
+      btnOverlayBorderRed.addEventListener('click', () => {
+        const selected = getSelectedItem();
+        if (selected && selected.type === 'overlay_image') {
+          saveHistory();
+          selected.borderColor = '#e01a22';
+          selected.borderWidth = 3;
+          render();
+        }
+      });
+    }
+    if (btnOverlayBorderNone) {
+      btnOverlayBorderNone.addEventListener('click', () => {
+        const selected = getSelectedItem();
+        if (selected && selected.type === 'overlay_image') {
+          saveHistory();
+          selected.borderColor = 'none';
+          selected.borderWidth = 0;
+          render();
+        }
+      });
+    }
 
     btnInspectorDelete.addEventListener('click', () => deleteSelectedItem());
     btnClearNotes.addEventListener('click', () => {
@@ -870,14 +1007,20 @@
 
       // --- Ctrl/Cmd combos (ưu tiên cao nhất, luôn hoạt động) ---
       if (e.ctrlKey || e.metaKey) {
-        switch (e.key.toLowerCase()) {
-          case 'z':
-            e.preventDefault();
-            undo();
+        const key = e.key ? e.key.toLowerCase() : '';
+        const isZ = (key === 'z' || e.code === 'KeyZ');
+        if (isZ) {
+          if (isTyping) {
+            // Đang gõ chữ trong input/textarea thì để trình duyệt undo text nội bộ
             return;
+          }
+          e.preventDefault();
+          undo();
+          return;
+        }
+        switch (key) {
           case 'y':
             e.preventDefault();
-            // Redo placeholder nếu cần
             return;
           case 'c':
             if (!isTyping) {
@@ -908,10 +1051,13 @@
 
       // --- Các phím khi ĐANG GÕ CHỮ ---
       if (isTyping) {
-        if (e.key === 'Enter' && !floatingEditCard.classList.contains('hidden')) {
-          e.preventDefault();
-          hideFloatingCard();
-          showToast('✓ Đã lưu chữ');
+        if (document.activeElement === floatingTextInput) {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            hideFloatingCard();
+            showToast('✓ Đã lưu chữ');
+          }
+          return;
         }
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -1109,9 +1255,9 @@
       return;
     }
 
-    // 4. Xóa Note / Tick / Box / Mũi tên trên ảnh
+    // 4. Xóa Note / Tick / Box / Mũi tên / Ảnh chèn đè trên ảnh
     const item = getSelectedItem();
-    const itemDesc = item ? (item.type === 'tick' ? 'Tick đỏ' : item.type === 'arrow' ? 'Mũi tên' : item.type === 'badge' ? `Thẻ "${item.text}"` : 'Khung viền') : 'đối tượng';
+    const itemDesc = item ? (item.type === 'tick' ? 'Tick đỏ' : item.type === 'arrow' ? 'Mũi tên' : item.type === 'badge' ? `Thẻ "${item.text}"` : item.type === 'overlay_image' ? 'Ảnh chèn đè' : 'Khung viền') : 'đối tượng';
     state.items = state.items.filter(i => i.id !== state.selectedId);
     deselectItem();
     render();
@@ -1131,6 +1277,7 @@
     inspectorFrameControls.classList.add('hidden');
     inspectorBadgeControls.classList.add('hidden');
     inspectorTickControls.classList.add('hidden');
+    if (inspectorOverlayControls) inspectorOverlayControls.classList.add('hidden');
 
     if (item.type === 'box' || item.type === 'box_dot') {
       inspectorType.textContent = item.type === 'box' ? 'Đang chọn: Khung đỏ' : 'Đang chọn: Khung + Chấm';
@@ -1147,10 +1294,10 @@
       inspectorType.textContent = 'Đang chọn: Thẻ chữ vàng';
       inspectorBadgeControls.classList.remove('hidden');
 
-      primaryTextInput.value = item.text || '';
-      canvasTopTextInput.value = item.text || '';
-      inspectorBadgeText.value = item.text || '';
-      floatingTextInput.value = item.text || '';
+      if (primaryTextInput) primaryTextInput.value = item.text || '';
+      if (canvasTopTextInput) canvasTopTextInput.value = item.text || '';
+      if (inspectorBadgeText) inspectorBadgeText.value = item.text || '';
+      if (floatingTextInput) floatingTextInput.value = item.text || '';
 
       const curScalePercent = Math.round((item.scale || 1.0) * 100);
       floatingSizeSlider.value = curScalePercent;
@@ -1172,6 +1319,15 @@
     } else if (item.type === 'arrow') {
       inspectorType.textContent = 'Đang chọn: Mũi tên chỉ điểm';
       hideFloatingCard();
+    } else if (item.type === 'overlay_image') {
+      inspectorType.textContent = 'Đang chọn: Ảnh chèn đè';
+      if (inspectorOverlayControls) inspectorOverlayControls.classList.remove('hidden');
+      if (overlaySizeSlider) {
+        const curScale = Math.round((item.scale || 1.0) * 100);
+        overlaySizeSlider.value = curScale;
+        if (overlaySizeVal) overlaySizeVal.textContent = `${curScale}%`;
+      }
+      hideFloatingCard();
     }
 
     render();
@@ -1181,6 +1337,7 @@
     state.selectedId = null;
     state.selectedHandle = null;
     inspectorCard.classList.add('hidden');
+    if (inspectorOverlayControls) inspectorOverlayControls.classList.add('hidden');
     hideFloatingCard();
     render();
   }
@@ -1674,6 +1831,7 @@
   function handleInteractionStart(pos, originalEvent) {
     // 1. Check Banner 1
     if (state.banner.enabled && isInsideBox(pos, state.banner)) {
+      saveHistory();
       state.isDragging = true;
       state.selectedId = 'banner';
       state.dragStartPos = pos;
@@ -1685,6 +1843,7 @@
 
     // 2. Check Banner 2
     if (state.priceBanner.enabled && isInsideBox(pos, state.priceBanner)) {
+      saveHistory();
       state.isDragging = true;
       state.selectedId = 'priceBanner';
       state.dragStartPos = pos;
@@ -1696,6 +1855,7 @@
 
     // 2.5 Check Brand Badge
     if (state.brandBadge.enabled && isInsideBox(pos, state.brandBadge)) {
+      saveHistory();
       state.isDragging = true;
       state.selectedId = 'brandBadge';
       state.dragStartPos = pos;
@@ -1707,6 +1867,7 @@
 
     // 2.7 Check Fabric Specs Card
     if (state.fabricSpecs && state.fabricSpecs.enabled && isInsideBox(pos, state.fabricSpecs)) {
+      saveHistory();
       state.isDragging = true;
       state.selectedId = 'fabricSpecs';
       state.dragStartPos = pos;
@@ -1721,6 +1882,7 @@
     if (selected && (selected.type === 'box' || selected.type === 'box_dot')) {
       const handle = hitTestResizeHandle(pos, selected);
       if (handle) {
+        saveHistory();
         state.isDragging = true;
         state.selectedHandle = handle;
         state.dragStartPos = pos;
@@ -1734,6 +1896,7 @@
     if (selected && selected.type === 'badge') {
       const badgeHandle = hitTestBadgeScaleHandle(pos, selected);
       if (badgeHandle) {
+        saveHistory();
         state.isDragging = true;
         state.selectedHandle = badgeHandle;
         state.dragStartPos = pos;
@@ -1747,8 +1910,23 @@
     if (selected && selected.type === 'arrow') {
       const arrowHandle = hitTestArrowHandle(pos, selected);
       if (arrowHandle) {
+        saveHistory();
         state.isDragging = true;
         state.selectedHandle = arrowHandle;
+        state.dragStartPos = pos;
+        state.dragOriginalItem = { ...selected };
+        if (originalEvent.cancelable) originalEvent.preventDefault();
+        return;
+      }
+    }
+
+    // 4.6 Check Resize Handle of selected Overlay Image
+    if (selected && selected.type === 'overlay_image') {
+      const overlayHandle = hitTestOverlayResizeHandle(pos, selected);
+      if (overlayHandle) {
+        saveHistory();
+        state.isDragging = true;
+        state.selectedHandle = overlayHandle;
         state.dragStartPos = pos;
         state.dragOriginalItem = { ...selected };
         if (originalEvent.cancelable) originalEvent.preventDefault();
@@ -1759,6 +1937,7 @@
     // 5. Check existing item
     const clickedItem = findItemAt(pos);
     if (clickedItem) {
+      saveHistory();
       state.isDragging = true;
       state.selectedHandle = null;
       state.dragStartPos = pos;
@@ -1993,6 +2172,17 @@
           item.dx = orig.dx + dx;
           item.dy = orig.dy + dy;
         }
+      } else if (item.type === 'overlay_image') {
+        const orig = state.dragOriginalItem;
+        const origScale = orig.scale || 1.0;
+        const scaleFactor = 1 + (dx / (canvas.width * 0.2));
+        const newScale = Math.max(0.2, Math.min(4.0, origScale * scaleFactor));
+        item.scale = newScale;
+        if (overlaySizeSlider) {
+          const pct = Math.round(newScale * 100);
+          overlaySizeSlider.value = pct;
+          if (overlaySizeVal) overlaySizeVal.textContent = `${pct}%`;
+        }
       }
     } else {
       // MOVING Item
@@ -2044,18 +2234,20 @@
           return it;
         }
       } else if (it.type === 'badge') {
-        const scale = it.scale || 1.0;
-        const baseSize = canvas.width * 0.052 * scale;
-        const fontSize = baseSize * 0.65;
-        ctx.font = `800 ${fontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-        const metrics = ctx.measureText(it.text || '50m');
-        const padX = baseSize * 0.32;
-        const padY = baseSize * 0.18;
-        const w = metrics.width + padX * 2;
-        const h = fontSize + padY * 2;
+        const dims = getBadgeDimensions(it);
+        const halfW = dims.badgeW / 2;
+        const halfH = dims.badgeH / 2;
 
-        if (pos.x >= it.x - w/2 && pos.x <= it.x + w/2 &&
-            pos.y >= it.y - h/2 && pos.y <= it.y + h/2) {
+        if (pos.x >= it.x - halfW && pos.x <= it.x + halfW &&
+            pos.y >= it.y - halfH && pos.y <= it.y + halfH) {
+          return it;
+        }
+      } else if (it.type === 'overlay_image') {
+        const scale = it.scale || 1.0;
+        const halfW = ((it.width || 200) * scale) / 2;
+        const halfH = ((it.height || 150) * scale) / 2;
+        if (pos.x >= it.x - halfW && pos.x <= it.x + halfW &&
+            pos.y >= it.y - halfH && pos.y <= it.y + halfH) {
           return it;
         }
       } else if (it.type === 'tick') {
@@ -2118,15 +2310,9 @@
   }
 
   function hitTestBadgeScaleHandle(pos, badgeItem) {
-    const scale = badgeItem.scale || 1.0;
-    const baseSize = canvas.width * 0.052 * scale;
-    const fontSize = baseSize * 0.65;
-    ctx.font = `800 ${fontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    const metrics = ctx.measureText(badgeItem.text || '50m');
-    const padX = baseSize * 0.32;
-    const padY = baseSize * 0.18;
-    const halfW = (metrics.width + padX * 2) / 2;
-    const halfH = (fontSize + padY * 2) / 2;
+    const dims = getBadgeDimensions(badgeItem);
+    const halfW = dims.badgeW / 2;
+    const halfH = dims.badgeH / 2;
 
     const handleRadius = Math.max(8, canvas.width * 0.012);
     const corners = {
@@ -2134,6 +2320,27 @@
       tr: { x: badgeItem.x + halfW, y: badgeItem.y - halfH },
       bl: { x: badgeItem.x - halfW, y: badgeItem.y + halfH },
       br: { x: badgeItem.x + halfW, y: badgeItem.y + halfH }
+    };
+
+    for (const [key, p] of Object.entries(corners)) {
+      if (Math.hypot(pos.x - p.x, pos.y - p.y) <= handleRadius * 1.5) {
+        return key;
+      }
+    }
+    return null;
+  }
+
+  function hitTestOverlayResizeHandle(pos, overlayItem) {
+    const scale = overlayItem.scale || 1.0;
+    const halfW = ((overlayItem.width || 200) * scale) / 2;
+    const halfH = ((overlayItem.height || 150) * scale) / 2;
+    const handleRadius = Math.max(8, canvas.width * 0.012);
+
+    const corners = {
+      tl: { x: overlayItem.x - halfW, y: overlayItem.y - halfH },
+      tr: { x: overlayItem.x + halfW, y: overlayItem.y - halfH },
+      bl: { x: overlayItem.x - halfW, y: overlayItem.y + halfH },
+      br: { x: overlayItem.x + halfW, y: overlayItem.y + halfH }
     };
 
     for (const [key, p] of Object.entries(corners)) {
@@ -2233,6 +2440,8 @@
         drawBadge(item, isSelected);
       } else if (item.type === 'arrow') {
         drawArrow(item, isSelected);
+      } else if (item.type === 'overlay_image') {
+        drawOverlayImage(item, isSelected);
       }
     });
 
@@ -2549,25 +2758,43 @@
     ctx.restore();
   }
 
-  // Draw Badge with corner handles when selected!
-  function drawBadge(item, isSelected) {
+  // Helper tính toán kích thước thẻ note đa dòng chuẩn xác
+  function getBadgeDimensions(item) {
     const scale = (item.scale || 1.0) * state.globalScale;
     const baseSize = canvas.width * 0.052 * scale;
     const fontSize = baseSize * 0.65;
+    const rawText = String(item.text !== undefined && item.text !== null ? item.text : '50m');
+    const lines = rawText.split('\n');
 
     ctx.save();
     ctx.font = `800 ${fontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    const metrics = ctx.measureText(item.text || '50m');
+    let maxLineWidth = 0;
+    for (const l of lines) {
+      const w = ctx.measureText(l || ' ').width;
+      if (w > maxLineWidth) maxLineWidth = w;
+    }
+    ctx.restore();
 
     const padX = baseSize * 0.32;
-    const padY = baseSize * 0.18;
-    const badgeW = metrics.width + padX * 2;
-    const badgeH = fontSize + padY * 2;
+    const padY = baseSize * 0.20;
+    const lineHeight = fontSize * 1.25;
+    const textHeight = lines.length * lineHeight;
+    const badgeW = maxLineWidth + padX * 2;
+    const badgeH = textHeight + padY * 2;
+
+    return { scale, baseSize, fontSize, lines, lineHeight, textHeight, padX, padY, badgeW, badgeH };
+  }
+
+  // Draw Badge with multiline support & corner handles when selected!
+  function drawBadge(item, isSelected) {
+    const dims = getBadgeDimensions(item);
+    const { baseSize, fontSize, lines, lineHeight, textHeight, badgeW, badgeH } = dims;
 
     const isYellow = (item.colorTheme || 'yellow') === 'yellow';
     const bgColor = isYellow ? '#ffd000' : '#e01a22';
     const textColor = isYellow ? '#111827' : '#ffffff';
 
+    ctx.save();
     ctx.translate(item.x, item.y);
 
     // Shadow
@@ -2591,9 +2818,14 @@
     ctx.stroke();
 
     ctx.fillStyle = textColor;
+    ctx.font = `800 ${fontSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(item.text, 0, baseSize * 0.03);
+
+    const startY = -textHeight / 2 + lineHeight / 2;
+    lines.forEach((line, idx) => {
+      ctx.fillText(line, 0, startY + idx * lineHeight + baseSize * 0.02);
+    });
 
     // If selected: draw 4 corner handles so user can drag to resize badge!
     if (isSelected) {
@@ -3290,6 +3522,340 @@
     link.href = canvas.toDataURL('image/png', 1.0);
     link.click();
     showToast('Đang tải ảnh chất lượng cao về máy...');
+  }
+
+  // ============================================================
+  // OVERLAY IMAGE RENDERING (Ảnh chồng lên ảnh)
+  // ============================================================
+  function drawOverlayImage(item, isSelected) {
+    if (!item) return;
+    if (!item.img || !item.img.complete || item.img.naturalWidth === 0) {
+      if (item.imgSrc && !item.img) {
+        const im = new Image();
+        im.onload = () => render();
+        im.src = item.imgSrc;
+        item.img = im;
+      }
+      return;
+    }
+
+    const scale = (item.scale || 1.0);
+    const halfW = ((item.width || 200) * scale) / 2;
+    const halfH = ((item.height || 150) * scale) / 2;
+    const w = halfW * 2;
+    const h = halfH * 2;
+    const r = (item.borderRadius !== undefined ? item.borderRadius : 8) * state.globalScale;
+    const bColor = item.borderColor || '#ffffff';
+    const bWidth = (item.borderWidth !== undefined ? item.borderWidth : 3) * state.globalScale;
+
+    ctx.save();
+    ctx.translate(item.x, item.y);
+
+    // Drop shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 12 * state.globalScale;
+    ctx.shadowOffsetY = 4 * state.globalScale;
+
+    ctx.beginPath();
+    roundRect(ctx, -halfW, -halfH, w, h, r);
+    ctx.fillStyle = '#1e293b';
+    ctx.fill();
+
+    ctx.save();
+    ctx.clip();
+    ctx.drawImage(item.img, -halfW, -halfH, w, h);
+    ctx.restore();
+
+    // Border
+    ctx.shadowColor = 'transparent';
+    if (bColor !== 'none' && bWidth > 0) {
+      ctx.strokeStyle = bColor;
+      ctx.lineWidth = bWidth;
+      ctx.beginPath();
+      roundRect(ctx, -halfW, -halfH, w, h, r);
+      ctx.stroke();
+    }
+
+    // Selected indicator + 4 corner resize handles
+    if (isSelected) {
+      ctx.strokeStyle = '#4f46e5';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      roundRect(ctx, -halfW - 2, -halfH - 2, w + 4, h + 4, r + 2);
+      ctx.stroke();
+
+      const handleR = Math.max(6, canvas.width * 0.008);
+      const corners = [
+        [-halfW, -halfH],
+        [halfW, -halfH],
+        [-halfW, halfH],
+        [halfW, halfH]
+      ];
+      corners.forEach(([cx, cy]) => {
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#4f46e5';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, handleR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // CROP & OVERLAY MODAL LOGIC (Cắt & Chèn ảnh chồng lên bảng màu)
+  // ============================================================
+  const cropState = {
+    cropX: 0,
+    cropY: 0,
+    cropW: 0,
+    cropH: 0,
+    ratio: 'free',
+    isDragging: false,
+    dragAction: null,
+    startX: 0,
+    startY: 0,
+    origRect: null
+  };
+
+  function openCropOverlayModal(fileOrSrc) {
+    if (!fileOrSrc) return;
+    if (typeof fileOrSrc === 'string') {
+      loadCropSource(fileOrSrc);
+    } else if (fileOrSrc instanceof Blob || fileOrSrc instanceof File) {
+      const reader = new FileReader();
+      reader.onload = (e) => loadCropSource(e.target.result);
+      reader.readAsDataURL(fileOrSrc);
+    }
+  }
+
+  function loadCropSource(src) {
+    if (!cropModal || !cropSourceImg) return;
+    cropSourceImg.onload = () => {
+      cropModal.classList.remove('hidden');
+      setTimeout(initCropBox, 60);
+    };
+    cropSourceImg.src = src;
+  }
+
+  function closeCropModal() {
+    if (cropModal) cropModal.classList.add('hidden');
+    cropState.isDragging = false;
+    cropState.dragAction = null;
+  }
+
+  function initCropBox() {
+    if (!cropSourceImg || !cropBox) return;
+    const dispW = cropSourceImg.clientWidth || 300;
+    const dispH = cropSourceImg.clientHeight || 200;
+
+    let initW = Math.round(dispW * 0.8);
+    let initH = Math.round(dispH * 0.8);
+
+    if (cropState.ratio === '1:1') {
+      const side = Math.min(initW, initH);
+      initW = side;
+      initH = side;
+    } else if (cropState.ratio === '4:3') {
+      initH = Math.round((initW * 3) / 4);
+      if (initH > dispH * 0.85) {
+        initH = Math.round(dispH * 0.8);
+        initW = Math.round((initH * 4) / 3);
+      }
+    } else if (cropState.ratio === '16:9') {
+      initH = Math.round((initW * 9) / 16);
+      if (initH > dispH * 0.85) {
+        initH = Math.round(dispH * 0.8);
+        initW = Math.round((initH * 16) / 9);
+      }
+    } else if (cropState.ratio === 'all') {
+      initW = dispW;
+      initH = dispH;
+    }
+
+    const initX = Math.round((dispW - initW) / 2);
+    const initY = Math.round((dispH - initH) / 2);
+    setCropBoxRect(initX, initY, initW, initH);
+  }
+
+  function setCropBoxRect(x, y, w, h) {
+    if (!cropSourceImg || !cropBox) return;
+    const dispW = cropSourceImg.clientWidth || 300;
+    const dispH = cropSourceImg.clientHeight || 200;
+
+    w = Math.max(30, Math.min(w, dispW));
+    h = Math.max(30, Math.min(h, dispH));
+    x = Math.max(0, Math.min(x, dispW - w));
+    y = Math.max(0, Math.min(y, dispH - h));
+
+    cropState.cropX = x;
+    cropState.cropY = y;
+    cropState.cropW = w;
+    cropState.cropH = h;
+
+    cropBox.style.left = `${x}px`;
+    cropBox.style.top = `${y}px`;
+    cropBox.style.width = `${w}px`;
+    cropBox.style.height = `${h}px`;
+  }
+
+  function initCropModal() {
+    if (!cropModal) return;
+
+    if (btnCropClose) btnCropClose.addEventListener('click', closeCropModal);
+    if (btnCropCancel) btnCropCancel.addEventListener('click', closeCropModal);
+
+    if (btnCropAsBase) {
+      btnCropAsBase.addEventListener('click', () => {
+        if (!cropSourceImg || !cropSourceImg.src) return;
+        loadImageSource(cropSourceImg.src);
+        closeCropModal();
+        showToast('✓ Đã đặt làm ảnh nền chính của bảng màu!');
+      });
+    }
+
+    if (btnCropApply) {
+      btnCropApply.addEventListener('click', () => {
+        if (!cropSourceImg || !cropSourceImg.naturalWidth) return;
+        const dispW = cropSourceImg.clientWidth;
+        const dispH = cropSourceImg.clientHeight;
+        const scaleX = cropSourceImg.naturalWidth / dispW;
+        const scaleY = cropSourceImg.naturalHeight / dispH;
+
+        const sx = Math.max(0, Math.round(cropState.cropX * scaleX));
+        const sy = Math.max(0, Math.round(cropState.cropY * scaleY));
+        const sw = Math.min(cropSourceImg.naturalWidth - sx, Math.max(10, Math.round(cropState.cropW * scaleX)));
+        const sh = Math.min(cropSourceImg.naturalHeight - sy, Math.max(10, Math.round(cropState.cropH * scaleY)));
+
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = sw;
+        offCanvas.height = sh;
+        const offCtx = offCanvas.getContext('2d');
+        offCtx.drawImage(cropSourceImg, sx, sy, sw, sh, 0, 0, sw, sh);
+        const croppedDataUrl = offCanvas.toDataURL('image/png');
+
+        const overlayImg = new Image();
+        overlayImg.onload = () => {
+          saveHistory();
+          const targetW = canvas.width * 0.28;
+          const targetH = targetW * (sh / sw);
+
+          const newItem = {
+            id: 'overlay_' + Date.now(),
+            type: 'overlay_image',
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            width: targetW,
+            height: targetH,
+            naturalWidth: sw,
+            naturalHeight: sh,
+            scale: 1.0,
+            borderRadius: 8,
+            borderWidth: 3,
+            borderColor: '#ffffff',
+            img: overlayImg,
+            imgSrc: croppedDataUrl
+          };
+
+          state.items.push(newItem);
+          selectItem(newItem.id);
+          render();
+          closeCropModal();
+          showToast('✓ Đã chèn ảnh đè thành công! Kéo 4 góc để phóng to/thu nhỏ, kéo giữa để di chuyển.');
+        };
+        overlayImg.src = croppedDataUrl;
+      });
+    }
+
+    // Ratio buttons
+    cropRatioButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        cropRatioButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        cropState.ratio = btn.dataset.ratio;
+        initCropBox();
+      });
+    });
+
+    // Drag & Resize cropBox
+    function getCropPoint(e) {
+      const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0].clientX);
+      const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0].clientY);
+      return { x: clientX, y: clientY };
+    }
+
+    if (cropBox) {
+      cropBox.addEventListener('mousedown', startCropDrag);
+      cropBox.addEventListener('touchstart', startCropDrag, { passive: false });
+    }
+
+    function startCropDrag(e) {
+      const target = e.target;
+      const pt = getCropPoint(e);
+      cropState.isDragging = true;
+      cropState.startX = pt.x;
+      cropState.startY = pt.y;
+      cropState.origRect = {
+        x: cropState.cropX,
+        y: cropState.cropY,
+        w: cropState.cropW,
+        h: cropState.cropH
+      };
+
+      if (target.classList.contains('crop-handle')) {
+        cropState.dragAction = target.dataset.handle;
+      } else {
+        cropState.dragAction = 'move';
+      }
+      if (e.cancelable) e.preventDefault();
+    }
+
+    window.addEventListener('mousemove', moveCropDrag);
+    window.addEventListener('touchmove', moveCropDrag, { passive: false });
+
+    function moveCropDrag(e) {
+      if (!cropState.isDragging || !cropState.origRect) return;
+      const pt = getCropPoint(e);
+      const dx = pt.x - cropState.startX;
+      const dy = pt.y - cropState.startY;
+      const orig = cropState.origRect;
+
+      if (cropState.dragAction === 'move') {
+        setCropBoxRect(orig.x + dx, orig.y + dy, orig.w, orig.h);
+      } else {
+        let newX = orig.x;
+        let newY = orig.y;
+        let newW = orig.w;
+        let newH = orig.h;
+
+        const action = cropState.dragAction;
+        if (action.includes('e')) newW = orig.w + dx;
+        if (action.includes('s')) newH = orig.h + dy;
+        if (action.includes('w')) {
+          newW = orig.w - dx;
+          newX = orig.x + dx;
+        }
+        if (action.includes('n')) {
+          newH = orig.h - dy;
+          newY = orig.y + dy;
+        }
+
+        if (cropState.ratio === '1:1') {
+          const side = Math.max(30, Math.min(newW, newH));
+          newW = side;
+          newH = side;
+        }
+
+        setCropBoxRect(newX, newY, newW, newH);
+      }
+      if (e.cancelable) e.preventDefault();
+    }
+
+    window.addEventListener('mouseup', () => { cropState.isDragging = false; });
+    window.addEventListener('touchend', () => { cropState.isDragging = false; });
   }
 
   window.addEventListener('DOMContentLoaded', init);

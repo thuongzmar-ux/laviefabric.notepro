@@ -31,6 +31,13 @@
           <input type="file" id="header-file-input" accept="image/*" class="file-input-hidden">
         </label>
 
+        <!-- Nút Chèn ảnh chồng / Cắt dán -->
+        <label id="btn-header-overlay" class="btn btn-outline btn-header-overlay" title="Chèn thêm ảnh đè / Cắt dán chi tiết lên bảng màu (Ctrl+V)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+          <span class="btn-text">✂️ Chèn ảnh đè</span>
+          <input type="file" id="header-overlay-input" accept="image/*" class="file-input-hidden">
+        </label>
+
         <button id="btn-undo" class="btn btn-ghost" title="Hoàn tác (Ctrl+Z)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
           <span class="btn-text">Hoàn tác</span>
@@ -90,6 +97,10 @@
                 <span class="drop-text-inline">Bấm chọn ảnh hoặc <strong>Ctrl+V dán từ Zalo</strong></span>
               </div>
             </div>
+            <label class="btn btn-outline btn-sm w-full btn-sidebar-crop-overlay" style="margin-top: 6px;" title="Chèn ảnh đè lên bảng màu (hoặc dán Ctrl+V khi đã có ảnh)">
+              ✂️ Chèn thêm ảnh đè / Cắt dán (Ctrl+V)
+              <input type="file" id="tab-overlay-input" accept="image/*" class="file-input-hidden">
+            </label>
           </div>
 
           <!-- Section: Chọn công cụ -->
@@ -161,7 +172,7 @@
             </div>
 
             <div class="big-input-wrapper">
-              <input type="text" id="primary-text-input" class="big-text-input" placeholder="Nhập chữ, vd: 50m, 100m, 1 cây..." value="50m">
+              <textarea id="primary-text-input" class="big-text-input multiline-textarea" rows="2" placeholder="Nhập chữ/số lượng... (Enter / Shift+Enter để xuống dòng)">50m</textarea>
               <button id="btn-clear-text" class="btn-clear-input" title="Xóa chữ">✕</button>
             </div>
 
@@ -226,8 +237,8 @@
             <!-- Badge controls -->
             <div id="inspector-badge-controls" class="inspector-controls-group hidden">
               <div class="badge-inspector-row">
-                <label>Sửa chữ trên thẻ:</label>
-                <input type="text" id="inspector-badge-text" class="inspector-input-big" placeholder="Nhập chữ/số lượng...">
+                <label>Sửa chữ trên thẻ (hỗ trợ xuống dòng):</label>
+                <textarea id="inspector-badge-text" class="inspector-input-big multiline-textarea" rows="2" placeholder="Nhập chữ/số lượng (xuống dòng thoải mái)..."></textarea>
               </div>
               <div class="badge-options-row">
                 <span>Màu thẻ:</span>
@@ -245,6 +256,23 @@
                 <span id="tick-size-val" class="stepper-val">100%</span>
               </div>
               <input type="range" id="tick-size-slider" min="50" max="300" value="100" class="stepper-slider">
+            </div>
+
+            <!-- Overlay Image controls -->
+            <div id="inspector-overlay-controls" class="inspector-controls-group hidden">
+              <div class="size-stepper-row">
+                <span class="stepper-label">Phóng to / thu nhỏ ảnh:</span>
+                <span id="overlay-size-val" class="stepper-val">100%</span>
+              </div>
+              <input type="range" id="overlay-size-slider" min="20" max="350" value="100" class="stepper-slider">
+              <div class="badge-options-row" style="margin-top: 8px;">
+                <span>Viền ảnh:</span>
+                <div class="banner-color-picker">
+                  <button class="btn-color-dot white active" id="btn-overlay-border-white" title="Viền trắng"></button>
+                  <button class="btn-color-dot red" id="btn-overlay-border-red" title="Viền đỏ"></button>
+                  <button class="btn-color-dot dark" id="btn-overlay-border-none" title="Không viền"></button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -523,7 +551,7 @@
               </div>
 
               <div class="floating-edit-body">
-                <input type="text" id="floating-text-input" class="floating-input-main" placeholder="Nhập chữ...  [Enter để lưu]" value="50m">
+                <textarea id="floating-text-input" class="floating-input-main multiline-textarea" rows="2" placeholder="Nhập chữ... (Shift+Enter để xuống dòng, Enter để lưu)">50m</textarea>
                 <button id="btn-floating-save" class="btn-floating-save-btn">Xong ✓</button>
               </div>
 
@@ -555,6 +583,62 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Modal Cắt & Chèn Ảnh Chồng Lên Bảng Màu -->
+  <div id="crop-modal" class="crop-modal-backdrop hidden">
+    <div class="crop-modal-card">
+      <div class="crop-modal-header">
+        <div class="crop-header-title">
+          <span class="crop-icon">✂️</span>
+          <div>
+            <h3>Cắt & Chèn Ảnh Chồng Lên Bảng Màu</h3>
+            <p>Kéo các góc khung chọn để lấy đoạn ảnh phù hợp, hoặc chọn lấy toàn bộ ảnh</p>
+          </div>
+        </div>
+        <button id="btn-crop-close" class="btn-crop-close" title="Đóng [Esc]">✕</button>
+      </div>
+
+      <div class="crop-modal-body">
+        <div class="crop-stage-container" id="crop-stage-container">
+          <img id="crop-source-img" alt="Ảnh nguồn cần cắt" class="crop-source-img">
+          <div id="crop-box" class="crop-box">
+            <div class="crop-box-grid"></div>
+            <!-- 4 Corner handles -->
+            <div class="crop-handle handle-nw" data-handle="nw"></div>
+            <div class="crop-handle handle-ne" data-handle="ne"></div>
+            <div class="crop-handle handle-se" data-handle="se"></div>
+            <div class="crop-handle handle-sw" data-handle="sw"></div>
+            <!-- 4 Edge handles -->
+            <div class="crop-handle handle-n" data-handle="n"></div>
+            <div class="crop-handle handle-e" data-handle="e"></div>
+            <div class="crop-handle handle-s" data-handle="s"></div>
+            <div class="crop-handle handle-w" data-handle="w"></div>
+          </div>
+        </div>
+
+        <div class="crop-toolbar">
+          <span class="crop-toolbar-label">Tỉ lệ cắt:</span>
+          <button class="btn-crop-ratio active" data-ratio="free">Tự do</button>
+          <button class="btn-crop-ratio" data-ratio="1:1">Vuông 1:1</button>
+          <button class="btn-crop-ratio" data-ratio="4:3">4:3</button>
+          <button class="btn-crop-ratio" data-ratio="16:9">16:9</button>
+          <button class="btn-crop-ratio" data-ratio="all">Lấy cả ảnh</button>
+        </div>
+      </div>
+
+      <div class="crop-modal-footer">
+        <button id="btn-crop-as-base" class="btn btn-outline" title="Thay thế ảnh này làm ảnh nền chính của bảng màu">
+          🔄 Đặt làm ảnh nền chính
+        </button>
+        <div class="crop-footer-right">
+          <button id="btn-crop-cancel" class="btn btn-ghost">Hủy (Esc)</button>
+          <button id="btn-crop-apply" class="btn btn-primary btn-crop-apply">
+            ✓ Cắt & Chèn Vào Bảng Màu
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Toast Notification -->
