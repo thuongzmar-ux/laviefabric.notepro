@@ -38,11 +38,16 @@
           <input type="file" id="header-overlay-input" accept="image/*" class="file-input-hidden">
         </label>
 
-        <button id="btn-undo" class="btn btn-ghost" title="Hoàn tác (Ctrl+Z)">
+        <div id="header-order-counter" class="header-order-counter" title="Tổng số màu & số lượng đã chấm trên ảnh (Click để xem chi tiết)">
+          <span class="counter-dot"></span>
+          <span id="header-counter-text">⚡ 0 màu</span>
+        </div>
+
+        <button id="btn-undo" class="btn btn-ghost" title="Hoàn tác thao tác vừa thực hiện (Ctrl+Z)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
           <span class="btn-text">Hoàn tác</span>
         </button>
-        <button id="btn-copy-image" class="btn btn-primary" title="Sao chép ảnh đã gắn note để dán ngay vào Zalo">
+        <button id="btn-copy-image" class="btn btn-primary btn-cta-zalo" title="Sao chép ảnh đã gắn note để dán ngay vào Zalo (Ctrl+C)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
           Copy gửi Zalo
         </button>
@@ -103,6 +108,28 @@
             </label>
           </div>
 
+          <!-- Thẻ nhập nhanh Tên khách & Mã vải (Đồng bộ trực tiếp lên ảnh) -->
+          <div class="panel-card quick-order-card">
+            <div class="card-title-between">
+              <h3>🏷️ Khách & Mã vải:</h3>
+              <label class="toggle-option-inline" title="Bật/Tắt in bảng tên lên ảnh">
+                <input type="checkbox" id="tab1-toggle-banner" checked>
+                <span class="toggle-switch-sm"></span>
+                <span class="toggle-text-sm">In lên ảnh</span>
+              </label>
+            </div>
+            <div class="quick-order-inputs">
+              <div class="quick-order-col">
+                <span class="input-tiny-label">Tên khách:</span>
+                <input type="text" id="tab1-input-customer" class="quick-order-input" placeholder="Tên khách..." value="C Dung">
+              </div>
+              <div class="quick-order-col">
+                <span class="input-tiny-label">Mã vải:</span>
+                <input type="text" id="tab1-input-fabric" class="quick-order-input" placeholder="Mã / Loại vải..." value="Thun loang 822-10#">
+              </div>
+            </div>
+          </div>
+
           <!-- Section: Chọn công cụ -->
           <div class="panel-card">
             <div class="card-title-between">
@@ -112,31 +139,35 @@
             <div class="tools-grid">
               <button class="tool-btn active" data-tool="select" data-key="V" title="Con trỏ Chọn & Di chuyển: Click để chọn/kéo/sửa, không sợ click nhầm dán thêm [Phím V hoặc Esc]">
                 <span class="tool-icon text-blue">↖</span>
-                <span class="tool-label">Con trỏ Chọn</span>
+                <span class="tool-label">Con trỏ Chọn (V)</span>
+              </button>
+              <button class="tool-btn" data-tool="hand" data-key="H" title="Bàn tay Rê ảnh: Giữ chuột rê tự do khắp ảnh khổ lớn [Phím H hoặc giữ Space]">
+                <span class="tool-icon text-cyan">✋</span>
+                <span class="tool-label">Rê ảnh (H)</span>
               </button>
               <button class="tool-btn" data-tool="tick" data-key="1" title="Chỉ đóng dấu Tick đỏ  [Phím 1]">
                 <span class="tool-icon text-red">✓</span>
-                <span class="tool-label">Tick đỏ</span>
+                <span class="tool-label">Tick đỏ (1)</span>
               </button>
               <button class="tool-btn" data-tool="box" data-key="2" title="Chỉ vẽ khung viền đỏ bo góc  [Phím 2]">
                 <span class="tool-icon text-red">▢</span>
-                <span class="tool-label">Khung đỏ</span>
+                <span class="tool-label">Khung đỏ (2)</span>
               </button>
               <button class="tool-btn" data-tool="box_dot" data-key="3" title="Khung đỏ có chấm tâm  [Phím 3]">
                 <span class="tool-icon text-red">▢ •</span>
-                <span class="tool-label">Khung + Chấm</span>
+                <span class="tool-label">Khung+Chấm (3)</span>
               </button>
               <button class="tool-btn" data-tool="badge" data-key="4" title="Chỉ dán thẻ chữ/số lượng riêng  [Phím 4]">
                 <span class="tool-icon text-yellow">🏷️</span>
-                <span class="tool-label">Thẻ chữ</span>
+                <span class="tool-label">Thẻ chữ (4)</span>
               </button>
               <button class="tool-btn" data-tool="combo" data-key="5" title="Dán cả Khung + Thẻ chữ cùng lúc  [Phím 5]">
                 <span class="tool-icon text-red">▢ + 🏷️</span>
-                <span class="tool-label">Cả cụm</span>
+                <span class="tool-label">Cả cụm (5)</span>
               </button>
               <button class="tool-btn" data-tool="arrow" data-key="6" title="Mũi tên đỏ chỉ điểm chính xác ô màu / chi tiết vải  [Phím 6]">
                 <span class="tool-icon text-red">➔</span>
-                <span class="tool-label">Mũi tên</span>
+                <span class="tool-label">Mũi tên (6)</span>
               </button>
             </div>
             <div class="stamp-mode-box">
@@ -455,6 +486,7 @@
         <div class="floating-quick-bar hidden">
           <div class="quick-tool-selector">
             <button class="btn-mini-tool active" data-mini-tool="select" title="Con trỏ Chọn [V]">↖ Chọn</button>
+            <button class="btn-mini-tool" data-mini-tool="hand" title="Bàn tay Rê ảnh [H]">✋</button>
             <button class="btn-mini-tool" data-mini-tool="tick" title="Tick đỏ [1]">✓</button>
             <button class="btn-mini-tool" data-mini-tool="box" title="Khung đỏ [2]">▢</button>
             <button class="btn-mini-tool" data-mini-tool="box_dot" title="Khung + Chấm [3]">▢•</button>

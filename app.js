@@ -253,6 +253,7 @@
 
   const TOOL_NAMES = {
     select: 'Con trỏ Chọn (V)',
+    hand: 'Bàn tay Rê ảnh (H)',
     tick: 'Tick đỏ (1)',
     box: 'Khung đỏ (2)',
     box_dot: 'Khung+Chấm (3)',
@@ -277,7 +278,7 @@
   }
 
   function updateCanvasCursor() {
-    if (state.spacePressed) {
+    if (state.spacePressed || state.currentTool === 'hand') {
       canvas.style.cursor = state.isPanning ? 'grabbing' : 'grab';
       return;
     }
@@ -305,11 +306,13 @@
           <div class="shortcut-section">
             <div class="shortcut-section-title">Chọn công cụ</div>
             <div class="shortcut-row"><kbd>V</kbd> <strong>Con trỏ Chọn</strong> (tránh dán nhầm)</div>
+            <div class="shortcut-row"><kbd>H</kbd> <strong>Bàn tay Rê ảnh</strong> (Pan ảnh khổ lớn)</div>
             <div class="shortcut-row"><kbd>1</kbd> Tick đỏ ✓</div>
             <div class="shortcut-row"><kbd>2</kbd> Khung đỏ ▢</div>
             <div class="shortcut-row"><kbd>3</kbd> Khung + Chấm ▢•</div>
             <div class="shortcut-row"><kbd>4</kbd> Thẻ chữ 🏷️</div>
             <div class="shortcut-row"><kbd>5</kbd> Cả cụm ▢+🏷️</div>
+            <div class="shortcut-row"><kbd>6</kbd> Mũi tên đỏ ➔</div>
           </div>
           <div class="shortcut-section">
             <div class="shortcut-section-title">Chỉnh sửa & Thao tác</div>
@@ -322,7 +325,7 @@
           </div>
           <div class="shortcut-section">
             <div class="shortcut-section-title">Di chuyển & Zoom</div>
-            <div class="shortcut-row"><kbd>Space</kbd>+kéo chuột Di chuyển góc nhìn (Pan)</div>
+            <div class="shortcut-row"><kbd>H</kbd> hoặc <kbd>Space</kbd>+chuột Rê góc nhìn (Pan)</div>
             <div class="shortcut-row"><kbd>↑↓←→</kbd> Nhích element (2px)</div>
             <div class="shortcut-row"><kbd>Shift</kbd>+<kbd>↑↓←→</kbd> Nhích nhanh (10px)</div>
             <div class="shortcut-row"><kbd>+</kbd> / <kbd>-</kbd> Phóng to / Thu nhỏ</div>
@@ -814,19 +817,48 @@
       showToast('Đã xóa tất cả các note');
     });
 
-    // Banner 1 Controls
+    // Banner 1 Controls (Đồng bộ 2 chiều giữa Tab 1 và Tab 3)
+    const tab1ToggleBanner = document.getElementById('tab1-toggle-banner');
+    const tab1InputCustomer = document.getElementById('tab1-input-customer');
+    const tab1InputFabric = document.getElementById('tab1-input-fabric');
+
     toggleBanner.addEventListener('change', (e) => {
       state.banner.enabled = e.target.checked;
+      if (tab1ToggleBanner) tab1ToggleBanner.checked = e.target.checked;
       render();
     });
     inputCustomer.addEventListener('input', (e) => {
       state.banner.customer = e.target.value;
+      if (tab1InputCustomer) tab1InputCustomer.value = e.target.value;
       render();
     });
     inputFabric.addEventListener('input', (e) => {
       state.banner.fabric = e.target.value;
+      if (tab1InputFabric) tab1InputFabric.value = e.target.value;
       render();
     });
+
+    if (tab1ToggleBanner) {
+      tab1ToggleBanner.addEventListener('change', (e) => {
+        state.banner.enabled = e.target.checked;
+        if (toggleBanner) toggleBanner.checked = e.target.checked;
+        render();
+      });
+    }
+    if (tab1InputCustomer) {
+      tab1InputCustomer.addEventListener('input', (e) => {
+        state.banner.customer = e.target.value;
+        if (inputCustomer) inputCustomer.value = e.target.value;
+        render();
+      });
+    }
+    if (tab1InputFabric) {
+      tab1InputFabric.addEventListener('input', (e) => {
+        state.banner.fabric = e.target.value;
+        if (inputFabric) inputFabric.value = e.target.value;
+        render();
+      });
+    }
     bannerColorDots.forEach(dot => {
       dot.addEventListener('click', () => {
         bannerColorDots.forEach(d => d.classList.remove('active'));
@@ -1075,7 +1107,13 @@
           showToast('↖ Con trỏ Chọn & Di chuyển [V]');
           break;
 
-        // --- Chuyển tool nhanh: phím số 1-5 ---
+        // --- Phím H: Bàn tay Rê ảnh (Pan) ---
+        case 'h':
+          setActiveTool('hand');
+          showToast('✋ Bàn tay Rê ảnh [H]');
+          break;
+
+        // --- Chuyển tool nhanh: phím số 1-6 ---
         case '1':
           setActiveTool('tick');
           showToast('🔧 Tick đỏ  [1]');
@@ -1787,8 +1825,8 @@
   function handlePointerDown(e) {
     if (!state.img) return;
 
-    // Pan viewport khi giữ Space hoặc bấm chuột giữa
-    if (state.spacePressed || e.button === 1) {
+    // Pan viewport khi giữ Space hoặc bấm chuột giữa hoặc đang chọn Tool Hand (H)
+    if (state.spacePressed || e.button === 1 || state.currentTool === 'hand') {
       state.isPanning = true;
       state.panStart = { x: e.clientX, y: e.clientY };
       canvas.style.cursor = 'grabbing';
@@ -1822,6 +1860,12 @@
 
   function handleTouchStart(e) {
     if (!state.img) return;
+    if (state.currentTool === 'hand' && e.touches.length === 1) {
+      state.isPanning = true;
+      state.panStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      e.preventDefault();
+      return;
+    }
     if (e.touches.length === 1) {
       const pos = getCanvasCoords(e);
       handleInteractionStart(pos, e);
@@ -2089,6 +2133,15 @@
   }
 
   function handleTouchMove(e) {
+    if (state.isPanning && e.touches.length === 1) {
+      const dx = e.touches[0].clientX - state.panStart.x;
+      const dy = e.touches[0].clientY - state.panStart.y;
+      viewport.scrollLeft -= dx;
+      viewport.scrollTop -= dy;
+      state.panStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
     if (!state.isDragging || !state.dragOriginalItem) return;
     if (e.touches.length === 1) {
       const pos = getCanvasCoords(e);
@@ -2199,7 +2252,7 @@
   function handlePointerUp() {
     if (state.isPanning) {
       state.isPanning = false;
-      canvas.style.cursor = state.spacePressed ? 'grab' : (state.currentTool === 'select' ? 'default' : 'crosshair');
+      canvas.style.cursor = (state.spacePressed || state.currentTool === 'hand') ? 'grab' : (state.currentTool === 'select' ? 'default' : 'crosshair');
     }
     state.isDragging = false;
     state.selectedHandle = null;
@@ -2352,7 +2405,7 @@
   }
 
   function updateCursor(pos) {
-    if (state.spacePressed) {
+    if (state.spacePressed || state.currentTool === 'hand') {
       canvas.style.cursor = state.isPanning ? 'grabbing' : 'grab';
       return;
     }
@@ -3114,12 +3167,15 @@
   function updateSidebarOrderSummary() {
     const sumBadge = document.getElementById('live-order-sum-badge');
     const sumTextEl = document.getElementById('live-order-sum-text');
-    if (!sumBadge && !sumTextEl) return;
+    const headerCounter = document.getElementById('header-order-counter');
+    const headerCounterText = document.getElementById('header-counter-text');
 
     const summary = calculateOrderSummary();
     if (summary.swatchCount === 0) {
       if (sumBadge) sumBadge.textContent = '0 màu';
       if (sumTextEl) sumTextEl.textContent = 'Chưa chấm màu nào';
+      if (headerCounter) headerCounter.classList.remove('has-orders');
+      if (headerCounterText) headerCounterText.textContent = '⚡ 0 màu';
       return;
     }
 
@@ -3132,6 +3188,31 @@
 
     if (sumBadge) sumBadge.textContent = `${summary.swatchCount} màu`;
     if (sumTextEl) sumTextEl.textContent = `${summaryStr} (${summary.swatchCount} màu)`;
+
+    if (headerCounter && headerCounterText) {
+      headerCounter.classList.add('has-orders');
+      const badgeParts = [];
+      if (summary.treeCount > 0) badgeParts.push(`${summary.treeCount} cây`);
+      if (summary.meterCount > 0) badgeParts.push(`${summary.meterCount}m`);
+      if (summary.kgCount > 0) badgeParts.push(`${summary.kgCount}kg`);
+      const sub = badgeParts.length ? ` • ${badgeParts.join('+')}` : '';
+      headerCounterText.textContent = `⚡ ${summary.swatchCount} màu${sub}`;
+    }
+  }
+
+  // Click vào huy hiệu Live Order Counter ở Header sẽ scroll đến mục tổng kết
+  const headerOrderCounterEl = document.getElementById('header-order-counter');
+  if (headerOrderCounterEl) {
+    headerOrderCounterEl.addEventListener('click', () => {
+      const stampTabBtn = document.querySelector('.tab-btn[data-tab="stamp"]');
+      if (stampTabBtn) stampTabBtn.click();
+      const sumCard = document.querySelector('.auto-sum-card');
+      if (sumCard) {
+        sumCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        sumCard.style.boxShadow = '0 0 0 2px #10b981, 0 0 20px rgba(16, 185, 129, 0.4)';
+        setTimeout(() => { sumCard.style.boxShadow = ''; }, 1800);
+      }
+    });
   }
 
   // ============================================================
