@@ -1306,15 +1306,65 @@ body {
   box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
 }
 
+/* Ô nhập đơn giá bán sỉ */
+.order-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.unit-price-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.unit-price-input {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 4px;
+  color: #34d399;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 3px 6px;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.unit-price-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+
+.unit-price-type-select {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 4px;
+  outline: none;
+  cursor: pointer;
+}
+
 .auto-sum-display {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
-  background: rgba(0, 0, 0, 0.35);
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(245, 158, 11, 0.25);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
+  padding: 9px 12px;
   margin-top: 2px;
 }
 
@@ -1326,11 +1376,48 @@ body {
   line-height: 1.35;
 }
 
+/* Hộp hiển thị Giá trị đơn hàng (GTĐH) dự kiến */
+.auto-sum-revenue-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+.revenue-icon {
+  font-size: 0.95rem;
+}
+
+.revenue-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #a7f3d0;
+}
+
+.revenue-value {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #10b981;
+  letter-spacing: -0.01em;
+  margin-left: auto;
+}
+
 .auto-sum-formula-hint {
   font-size: 0.68rem;
   font-weight: 600;
   color: #94a3b8;
   display: inline-block;
+}
+
+.sum-toggle-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* Canvas Area */

@@ -198,15 +198,41 @@
               </select>
             </div>
 
+            <!-- Ô nhập đơn giá ước tính GTĐH -->
+            <div class="order-price-row">
+              <span class="formula-label">Đơn giá bán:</span>
+              <div class="unit-price-input-wrap">
+                <input type="text" id="unit-price-input" class="unit-price-input" placeholder="VD: 55k hoặc 78000" value="55k" title="Nhập giá sỉ để tự động ước tính Giá Trị Đơn Hàng (GTĐH)">
+                <select id="unit-price-type" class="unit-price-type-select">
+                  <option value="per_meter">đ/m</option>
+                  <option value="per_kg">đ/kg</option>
+                  <option value="per_tree">đ/cây</option>
+                </select>
+              </div>
+            </div>
+
             <div class="auto-sum-display">
               <span class="auto-sum-main" id="live-order-sum-text">Chưa chấm màu nào</span>
+              <div class="auto-sum-revenue-box" id="auto-sum-revenue-box">
+                <span class="revenue-icon">💰</span>
+                <span class="revenue-label">Ước tính GTĐH:</span>
+                <strong class="revenue-value" id="live-order-revenue-text">~0 đ</strong>
+              </div>
               <span class="auto-sum-formula-hint" id="live-order-formula-hint">Quy chuẩn: Tự động theo loại vải</span>
             </div>
-            <label class="toggle-option" style="margin-top: 6px;">
-              <input type="checkbox" id="toggle-banner-sum" checked>
-              <span class="toggle-switch"></span>
-              <span class="toggle-label font-sm">In dòng Tổng đơn lên ảnh</span>
-            </label>
+
+            <div class="sum-toggle-options">
+              <label class="toggle-option" style="margin-top: 6px;">
+                <input type="checkbox" id="toggle-banner-sum" checked>
+                <span class="toggle-switch"></span>
+                <span class="toggle-label font-sm">In dòng Tổng đơn lên ảnh</span>
+              </label>
+              <label class="toggle-option" style="margin-top: 4px;">
+                <input type="checkbox" id="toggle-banner-revenue" checked>
+                <span class="toggle-switch"></span>
+                <span class="toggle-label font-sm">In kèm GTĐH (tiền) lên ảnh</span>
+              </label>
+            </div>
           </div>
 
           <!-- Section: Ô NHẬP & SỬA CHỮ SIÊU TO RÕ RÀNG -->

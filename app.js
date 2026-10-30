@@ -19,6 +19,8 @@
     currentQty: '50m',
     globalScale: 1.0,
     fabricFormula: 'auto',
+    unitPrice: '55k',
+    unitPriceType: 'per_meter',
 
     // Banner 1: Customer & Fabric
     banner: {
@@ -28,6 +30,7 @@
       customer: 'C Dung',
       fabric: 'Thun loang 822-10#',
       showSummary: true,
+      showRevenue: true,
       colorTheme: 'red',
       fontSize: 32,
       paddingX: 20,
@@ -900,6 +903,34 @@
         state.banner.showSummary = e.target.checked;
         render();
         scheduleSaveImageHistory();
+      });
+    }
+
+    // Toggle in GTĐH (tiền) lên ảnh
+    const toggleBannerRevenue = document.getElementById('toggle-banner-revenue');
+    if (toggleBannerRevenue) {
+      toggleBannerRevenue.addEventListener('change', (e) => {
+        state.banner.showRevenue = e.target.checked;
+        render();
+        scheduleSaveImageHistory();
+      });
+    }
+
+    // Đơn vị và đơn giá bán sỉ
+    const unitPriceInput = document.getElementById('unit-price-input');
+    const unitPriceTypeSelect = document.getElementById('unit-price-type');
+    if (unitPriceInput) {
+      unitPriceInput.addEventListener('input', (e) => {
+        state.unitPrice = e.target.value;
+        updateSidebarOrderSummary();
+        render();
+      });
+    }
+    if (unitPriceTypeSelect) {
+      unitPriceTypeSelect.addEventListener('change', (e) => {
+        state.unitPriceType = e.target.value;
+        updateSidebarOrderSummary();
+        render();
       });
     }
 
@@ -2532,7 +2563,11 @@
     let sumText = '';
     let sumMetricsWidth = 0;
     if (showSum && summary.summaryFormatted) {
-      sumText = `⚡ Tổng: ${summary.summaryFormatted}`;
+      if (b.showRevenue !== false && summary.shortRevenue && summary.shortRevenue !== '0đ') {
+        sumText = `⚡ ${summary.summaryFormatted} • GTĐH: ${summary.shortRevenue}`;
+      } else {
+        sumText = `⚡ Tổng: ${summary.summaryFormatted}`;
+      }
       ctx.font = `bold ${sumSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
       sumMetricsWidth = ctx.measureText(sumText).width + 24 * state.globalScale;
     }
@@ -3206,7 +3241,57 @@
     return { trees, meters, kg, isExplicit };
   }
 
-  // Auto-Sum Order Calculation chuẩn xác theo từng loại chất liệu
+  // Parse chuỗi giá tiền: ví dụ "55k", "sỉ 55k", "78.000", "55000", "55" => 55000
+  function parseUnitPrice(priceStr) {
+    if (!priceStr || typeof priceStr !== 'string') return 55000;
+    const clean = priceStr.trim().toLowerCase();
+
+    // Match 55k, 55.5k
+    const kMatch = clean.match(/(\d+(?:[.,]\d+)?)\s*k\b/);
+    if (kMatch) {
+      return Math.round(parseFloat(kMatch[1].replace(',', '.')) * 1000);
+    }
+
+    // Match số có dấu chấm/phẩy ngăn nghìn (ví dụ 55.000, 120,000)
+    const dotMatch = clean.match(/(\d{1,3}(?:[.,]\d{3})+)/);
+    if (dotMatch) {
+      return parseInt(dotMatch[1].replace(/[.,]/g, ''), 10);
+    }
+
+    // Match số thông thường
+    const numMatch = clean.match(/(\d+(?:[.,]\d+)?)/);
+    if (numMatch) {
+      const val = parseFloat(numMatch[1].replace(',', '.'));
+      if (val > 0 && val < 500) {
+        return Math.round(val * 1000);
+      }
+      return Math.round(val);
+    }
+
+    return 55000;
+  }
+
+  function formatMoneyVND(amount) {
+    if (!amount || isNaN(amount)) return '0 đ';
+    const rounded = Math.round(amount);
+    return new Intl.NumberFormat('vi-VN').format(rounded) + ' đ';
+  }
+
+  function formatMoneyShort(amount) {
+    if (!amount || isNaN(amount)) return '0đ';
+    const rounded = Math.round(amount);
+    if (rounded >= 1000000) {
+      const tr = (rounded / 1000000).toFixed(1).replace('.0', '');
+      return `~${tr}tr`;
+    }
+    if (rounded >= 1000) {
+      const k = (rounded / 1000).toFixed(0);
+      return `~${k}k`;
+    }
+    return `${rounded}đ`;
+  }
+
+  // Auto-Sum Order Calculation chuẩn xác theo từng loại chất liệu & ước tính GTĐH
   function calculateOrderSummary() {
     let treeCount = 0;
     let meterCount = 0;
@@ -3247,13 +3332,16 @@
         swatchCount: 0,
         fabricType,
         formulaHint: 'Chưa có màu nào được chấm',
-        summaryFormatted: 'Chưa chấm màu nào'
+        summaryFormatted: 'Chưa chấm màu nào',
+        estimatedRevenue: 0,
+        revenueFormatted: '~0 đ',
+        shortRevenue: '0đ'
       };
     }
 
     // 1. Vải Thun: 1 cây = 25kg
     if (fabricType === 'thun') {
-      formulaHint = 'Quy chuẩn Thun: 1 cây = 25kg';
+      formulaHint = 'Quy chuẩn Thun: 1 cây ≈ 25kg';
       if (treeCount > 0 && meterCount === 0 && kgCount === 0) {
         const eqKg = Math.round(treeCount * 25);
         summaryFormatted = `${treeCount} cây ≈ ${eqKg}kg (${swatchCount} màu)`;
@@ -3271,7 +3359,7 @@
     } 
     // 2. Vải Tơ / Voan: 1 cây = 150m - 180m
     else if (fabricType === 'to_voan') {
-      formulaHint = 'Quy chuẩn Tơ / Voan: 1 cây = 150m - 180m';
+      formulaHint = 'Quy chuẩn Tơ / Voan: 1 cây ≈ 150m - 180m';
       if (treeCount > 0 && meterCount === 0 && kgCount === 0) {
         const minM = Math.round(treeCount * 150);
         const maxM = Math.round(treeCount * 180);
@@ -3288,7 +3376,7 @@
     }
     // 3. Vải Kaki / Cotton / Cứng: 1 cây = 130m
     else if (fabricType === 'kaki_cotton') {
-      formulaHint = 'Quy chuẩn Kaki / Cotton / Cứng: 1 cây = 130m';
+      formulaHint = 'Quy chuẩn Kaki / Cotton / Cứng: 1 cây ≈ 130m';
       if (treeCount > 0 && meterCount === 0 && kgCount === 0) {
         const eqM = Math.round(treeCount * 130);
         summaryFormatted = `${treeCount} cây ≈ ${eqM}m (${swatchCount} màu)`;
@@ -3303,7 +3391,7 @@
     }
     // 4. Mặc định / Tiêu chuẩn: 1 cây = 130m
     else {
-      formulaHint = 'Quy chuẩn Tiêu chuẩn: 1 cây = 130m';
+      formulaHint = 'Quy chuẩn Tiêu chuẩn: 1 cây ≈ 130m';
       if (treeCount > 0 && meterCount === 0 && kgCount === 0) {
         const eqM = Math.round(treeCount * 130);
         summaryFormatted = `${treeCount} cây ≈ ${eqM}m (${swatchCount} màu)`;
@@ -3317,6 +3405,58 @@
       }
     }
 
+    // ----------------------------------------------------
+    // ƯỚC TÍNH GIÁ TRỊ ĐƠN HÀNG (GTĐH)
+    // ----------------------------------------------------
+    const priceNum = parseUnitPrice(state.unitPrice || '55k');
+    const pType = state.unitPriceType || 'per_meter';
+    let estimatedRevenue = 0;
+    let revenueFormatted = '~0 đ';
+    let shortRevenue = '0đ';
+
+    if (swatchCount > 0 && priceNum > 0) {
+      if (pType === 'per_tree') {
+        estimatedRevenue = treeCount * priceNum;
+        revenueFormatted = `~${formatMoneyVND(estimatedRevenue)}`;
+        shortRevenue = formatMoneyShort(estimatedRevenue);
+      } else if (pType === 'per_kg') {
+        let totalKgCalc = kgCount;
+        if (treeCount > 0) {
+          totalKgCalc += (fabricType === 'thun') ? (treeCount * 25) : (treeCount * 30);
+        }
+        estimatedRevenue = totalKgCalc * priceNum;
+        revenueFormatted = `~${formatMoneyVND(estimatedRevenue)}`;
+        shortRevenue = formatMoneyShort(estimatedRevenue);
+      } else {
+        // per_meter (Mặc định tính theo mét)
+        if (meterCount > 0 && treeCount === 0) {
+          estimatedRevenue = meterCount * priceNum;
+          revenueFormatted = `~${formatMoneyVND(estimatedRevenue)}`;
+          shortRevenue = formatMoneyShort(estimatedRevenue);
+        } else if (treeCount > 0) {
+          if (fabricType === 'to_voan') {
+            const minM = treeCount * 150 + meterCount;
+            const maxM = treeCount * 180 + meterCount;
+            const minRev = minM * priceNum;
+            const maxRev = maxM * priceNum;
+            estimatedRevenue = Math.round(((minM + maxM) / 2) * priceNum);
+            revenueFormatted = `~${formatMoneyShort(minRev)} - ${formatMoneyVND(maxRev)}`;
+            shortRevenue = `${formatMoneyShort(minRev)}-${formatMoneyShort(maxRev)}`;
+          } else if (fabricType === 'kaki_cotton' || fabricType === 'standard') {
+            const totalM = treeCount * 130 + meterCount;
+            estimatedRevenue = totalM * priceNum;
+            revenueFormatted = `~${formatMoneyVND(estimatedRevenue)}`;
+            shortRevenue = formatMoneyShort(estimatedRevenue);
+          } else if (fabricType === 'thun') {
+            const totalM = treeCount * 80 + meterCount;
+            estimatedRevenue = totalM * priceNum;
+            revenueFormatted = `~${formatMoneyVND(estimatedRevenue)}`;
+            shortRevenue = formatMoneyShort(estimatedRevenue);
+          }
+        }
+      }
+    }
+
     return {
       treeCount,
       meterCount,
@@ -3324,26 +3464,39 @@
       swatchCount,
       fabricType,
       formulaHint,
-      summaryFormatted
+      summaryFormatted,
+      estimatedRevenue,
+      revenueFormatted,
+      shortRevenue
     };
   }
 
   function updateSidebarOrderSummary() {
     const sumBadge = document.getElementById('live-order-sum-badge');
     const sumTextEl = document.getElementById('live-order-sum-text');
+    const revenueTextEl = document.getElementById('live-order-revenue-text');
     const formulaHintEl = document.getElementById('live-order-formula-hint');
     const headerCounter = document.getElementById('header-order-counter');
     const headerCounterText = document.getElementById('header-counter-text');
     const fabricFormulaSelect = document.getElementById('fabric-formula-select');
+    const unitPriceInput = document.getElementById('unit-price-input');
+    const unitPriceTypeSelect = document.getElementById('unit-price-type');
 
     if (fabricFormulaSelect && state.fabricFormula && fabricFormulaSelect.value !== state.fabricFormula) {
       fabricFormulaSelect.value = state.fabricFormula;
+    }
+    if (unitPriceInput && state.unitPrice && unitPriceInput.value !== state.unitPrice) {
+      unitPriceInput.value = state.unitPrice;
+    }
+    if (unitPriceTypeSelect && state.unitPriceType && unitPriceTypeSelect.value !== state.unitPriceType) {
+      unitPriceTypeSelect.value = state.unitPriceType;
     }
 
     const summary = calculateOrderSummary();
     if (summary.swatchCount === 0) {
       if (sumBadge) sumBadge.textContent = '0 màu';
       if (sumTextEl) sumTextEl.textContent = 'Chưa chấm màu nào';
+      if (revenueTextEl) revenueTextEl.textContent = '~0 đ';
       if (formulaHintEl) formulaHintEl.textContent = 'Quy chuẩn: Tự động theo loại vải';
       if (headerCounter) headerCounter.classList.remove('has-orders');
       if (headerCounterText) headerCounterText.textContent = '⚡ 0 màu';
@@ -3352,11 +3505,13 @@
 
     if (sumBadge) sumBadge.textContent = `${summary.swatchCount} màu`;
     if (sumTextEl) sumTextEl.textContent = summary.summaryFormatted;
-    if (formulaHintEl) formulaHintEl.textContent = summary.formulaHint;
+    if (revenueTextEl) revenueTextEl.textContent = summary.revenueFormatted || '~0 đ';
+    if (formulaHintEl) formulaHintEl.textContent = `${summary.formulaHint} • Giá: ${state.unitPrice || '55k'}`;
 
     if (headerCounter && headerCounterText) {
       headerCounter.classList.add('has-orders');
-      headerCounterText.textContent = `⚡ ${summary.summaryFormatted}`;
+      const revPart = summary.shortRevenue && summary.shortRevenue !== '0đ' ? ` • ${summary.shortRevenue}` : '';
+      headerCounterText.textContent = `⚡ ${summary.summaryFormatted}${revPart}`;
     }
   }
 
