@@ -18,6 +18,7 @@
     panStart: { x: 0, y: 0 },
     currentQty: '50m',
     globalScale: 1.0,
+    fabricFormula: 'auto',
 
     // Banner 1: Customer & Fabric
     banner: {
@@ -835,6 +836,7 @@
     inputFabric.addEventListener('input', (e) => {
       state.banner.fabric = e.target.value;
       if (tab1InputFabric) tab1InputFabric.value = e.target.value;
+      updateSidebarOrderSummary();
       render();
     });
 
@@ -856,6 +858,7 @@
       tab1InputFabric.addEventListener('input', (e) => {
         state.banner.fabric = e.target.value;
         if (inputFabric) inputFabric.value = e.target.value;
+        updateSidebarOrderSummary();
         render();
       });
     }
@@ -2528,12 +2531,8 @@
     const sumSize = fontSize * 0.82;
     let sumText = '';
     let sumMetricsWidth = 0;
-    if (showSum) {
-      const parts = [];
-      if (summary.treeCount > 0) parts.push(`${summary.treeCount} cây`);
-      if (summary.meterCount > 0) parts.push(`${summary.meterCount}m`);
-      if (summary.kgCount > 0) parts.push(`${summary.kgCount}kg`);
-      sumText = `⚡ Tổng: ${parts.length ? parts.join(' + ') : `${summary.swatchCount} mục`} (${summary.swatchCount} màu)`;
+    if (showSum && summary.summaryFormatted) {
+      sumText = `⚡ Tổng: ${summary.summaryFormatted}`;
       ctx.font = `bold ${sumSize}px 'Plus Jakarta Sans', system-ui, sans-serif`;
       sumMetricsWidth = ctx.measureText(sumText).width + 24 * state.globalScale;
     }
@@ -3119,7 +3118,95 @@
     ctx.restore();
   }
 
-  // Auto-Sum Order Calculation (Tự động cộng dồn số cây đã tick)
+  // ============================================================
+  // CÔNG THỨC QUY ĐỔI CHẤT LIỆU VẢI CHUẨN XÁC (Lavie Fabric Pro)
+  // - Thun: 1 cây = 25kg
+  // - Kaki / Cotton / Vải cứng: 1 cây = 130m
+  // - Vải Tơ / Voan: 1 cây = 150m - 180m
+  // - Tiêu chuẩn / Khác: 1 cây = 130m
+  // ============================================================
+
+  function detectFabricType(rawName) {
+    if (state.fabricFormula && state.fabricFormula !== 'auto') {
+      return state.fabricFormula;
+    }
+    const original = (rawName || state.banner.fabric || '').toLowerCase();
+    const normalized = original.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // 1. Kaki / Cotton / Vải cứng (1 cây = 130m)
+    if (/(kaki|khaki|cotton|cung|det thoi|\btho\b|kate|linen|dui|jean|denim|canvas|\bbo\b)/.test(normalized) && !/\bthun\b/.test(normalized)) {
+      return 'kaki_cotton';
+    }
+    // 2. Vải Tơ / Voan (1 cây = 150m - 180m)
+    if (/\b(to|voan|chiffon|lua|organza)\b/.test(normalized) || /(tơ|voan|chiffon|lụa|organza)/.test(original)) {
+      return 'to_voan';
+    }
+    // 3. Vải Thun (1 cây = 25kg)
+    if (/(thun|spandex|rib|borip|da ca|tici|cotton 4c|poly 4c|ni|len gan|pe|viscose|modal)/.test(normalized)) {
+      return 'thun';
+    }
+    // 4. Mặc định / Tiêu chuẩn (1 cây = 130m)
+    return 'standard';
+  }
+
+  // Bóc tách số lượng chuẩn từ text trên tem (tránh hiểu nhầm mã màu như "44" thành 44 cây)
+  function parseNoteQuantity(text) {
+    if (!text || typeof text !== 'string') return { trees: 1, meters: 0, kg: 0, isExplicit: false };
+    const clean = text.trim();
+    if (!clean) return { trees: 1, meters: 0, kg: 0, isExplicit: false };
+
+    let meters = 0;
+    let trees = 0;
+    let kg = 0;
+    let isExplicit = false;
+
+    // 1. Match mét (ví dụ 50m, 100 mét, 12.5m)
+    const meterMatches = clean.matchAll(/(?:^|[^\w])(\d+(?:[.,]\d+)?)\s*(?:m|mét|met)\b/gi);
+    for (const m of meterMatches) {
+      meters += parseFloat(m[1].replace(',', '.'));
+      isExplicit = true;
+    }
+
+    // 2. Match kg (ví dụ 25kg, 50 kí, 10kg)
+    const kgMatches = clean.matchAll(/(?:^|[^\w])(\d+(?:[.,]\d+)?)\s*(?:kg|kí|ký|kilo)\b/gi);
+    for (const m of kgMatches) {
+      kg += parseFloat(m[1].replace(',', '.'));
+      isExplicit = true;
+    }
+
+    // 3. Match cây (ví dụ 1 cây, 2 cây, 1c, 2c, 1 cuộn)
+    const treeMatches = clean.matchAll(/(?:^|[^\w])(\d+(?:[.,]\d+)?)\s*(?:cây|cay|cuộn|c)\b/gi);
+    for (const m of treeMatches) {
+      trees += parseFloat(m[1].replace(',', '.'));
+      isExplicit = true;
+    }
+
+    // 4. Nếu không có đơn vị rõ ràng:
+    if (!isExplicit) {
+      // Phân biệt mã màu:
+      // Ví dụ: #44, 44#, Màu 44, Mau 12, S5040, M02, hoặc chỉ số nguyên (như 44, 12, 108)
+      // Trong ngành vải, số in trên bảng màu là số thứ tự màu.
+      // Khi sale tick/gắn số này, số lượng mua là 1 cây!
+      const isPureNumber = /^\d+$/.test(clean);
+      if (isPureNumber) {
+        const val = parseInt(clean, 10);
+        // Nếu số <= 4 và người dùng gõ ngắn gọn (1, 2, 3): có thể là 1 cây, 2 cây
+        if (val >= 1 && val <= 4) {
+          trees = val;
+        } else {
+          // Số từ 5 trở lên (ví dụ: 44, 20, 108): 100% LÀ MÃ MÀU VẢI! => 1 cây
+          trees = 1;
+        }
+      } else {
+        // Có chữ hoặc ký tự khác (ví dụ: "Màu 44", "44#", "Đen", "S5040"): số lượng = 1 cây
+        trees = 1;
+      }
+    }
+
+    return { trees, meters, kg, isExplicit };
+  }
+
+  // Auto-Sum Order Calculation chuẩn xác theo từng loại chất liệu
   function calculateOrderSummary() {
     let treeCount = 0;
     let meterCount = 0;
@@ -3132,23 +3219,10 @@
         swatchCount += 1;
       } else if (item.type === 'badge') {
         swatchCount += 1;
-        const text = (item.text || '').trim();
-        const treeMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(?:c|cây|cay)\b/i);
-        const meterMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(?:m|mét|met)\b/i);
-        const kgMatch = text.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
-        const numMatch = text.match(/\b(\d+(?:[.,]\d+)?)\b/);
-
-        if (treeMatch) {
-          treeCount += parseFloat(treeMatch[1].replace(',', '.'));
-        } else if (meterMatch) {
-          meterCount += parseFloat(meterMatch[1].replace(',', '.'));
-        } else if (kgMatch) {
-          kgCount += parseFloat(kgMatch[1].replace(',', '.'));
-        } else if (numMatch) {
-          treeCount += parseFloat(numMatch[1].replace(',', '.'));
-        } else {
-          treeCount += 1;
-        }
+        const q = parseNoteQuantity(item.text);
+        treeCount += q.trees;
+        meterCount += q.meters;
+        kgCount += q.kg;
       } else if (item.type === 'box' || item.type === 'box_dot') {
         // Chỉ tính nếu không có thẻ chữ nằm ngay bên trong khung
         const hasNearbyBadge = state.items.some(
@@ -3161,43 +3235,139 @@
       }
     });
 
-    return { treeCount, meterCount, kgCount, swatchCount };
+    const fabricType = detectFabricType(state.banner.fabric);
+    let summaryFormatted = '';
+    let formulaHint = '';
+
+    if (swatchCount === 0) {
+      return {
+        treeCount: 0,
+        meterCount: 0,
+        kgCount: 0,
+        swatchCount: 0,
+        fabricType,
+        formulaHint: 'Chưa có màu nào được chấm',
+        summaryFormatted: 'Chưa chấm màu nào'
+      };
+    }
+
+    // 1. Vải Thun: 1 cây = 25kg
+    if (fabricType === 'thun') {
+      formulaHint = 'Quy chuẩn Thun: 1 cây = 25kg';
+      if (treeCount > 0 && meterCount === 0 && kgCount === 0) {
+        const eqKg = Math.round(treeCount * 25);
+        summaryFormatted = `${treeCount} cây ≈ ${eqKg}kg (${swatchCount} màu)`;
+      } else if (kgCount > 0 && treeCount === 0 && meterCount === 0) {
+        const eqTrees = Math.round((kgCount / 25) * 10) / 10;
+        summaryFormatted = `${kgCount}kg ≈ ${eqTrees} cây (${swatchCount} màu)`;
+      } else if (treeCount > 0 && kgCount > 0) {
+        const totalEqKg = Math.round(treeCount * 25 + kgCount);
+        summaryFormatted = `${treeCount}c + ${kgCount}kg ≈ ${totalEqKg}kg (${swatchCount} màu)`;
+      } else if (meterCount > 0) {
+        summaryFormatted = `${treeCount > 0 ? `${treeCount} cây + ` : ''}${meterCount}m (${swatchCount} màu)`;
+      } else {
+        summaryFormatted = `${swatchCount} màu`;
+      }
+    } 
+    // 2. Vải Tơ / Voan: 1 cây = 150m - 180m
+    else if (fabricType === 'to_voan') {
+      formulaHint = 'Quy chuẩn Tơ / Voan: 1 cây = 150m - 180m';
+      if (treeCount > 0 && meterCount === 0 && kgCount === 0) {
+        const minM = Math.round(treeCount * 150);
+        const maxM = Math.round(treeCount * 180);
+        summaryFormatted = `${treeCount} cây ≈ ${minM} - ${maxM}m (${swatchCount} màu)`;
+      } else if (meterCount > 0 && treeCount === 0) {
+        summaryFormatted = `${meterCount}m (${swatchCount} màu)`;
+      } else if (treeCount > 0 && meterCount > 0) {
+        const minM = Math.round(treeCount * 150 + meterCount);
+        const maxM = Math.round(treeCount * 180 + meterCount);
+        summaryFormatted = `${treeCount} cây + ${meterCount}m ≈ ${minM} - ${maxM}m (${swatchCount} màu)`;
+      } else {
+        summaryFormatted = `${swatchCount} màu`;
+      }
+    }
+    // 3. Vải Kaki / Cotton / Cứng: 1 cây = 130m
+    else if (fabricType === 'kaki_cotton') {
+      formulaHint = 'Quy chuẩn Kaki / Cotton / Cứng: 1 cây = 130m';
+      if (treeCount > 0 && meterCount === 0 && kgCount === 0) {
+        const eqM = Math.round(treeCount * 130);
+        summaryFormatted = `${treeCount} cây ≈ ${eqM}m (${swatchCount} màu)`;
+      } else if (meterCount > 0 && treeCount === 0) {
+        summaryFormatted = `${meterCount}m (${swatchCount} màu)`;
+      } else if (treeCount > 0 && meterCount > 0) {
+        const totalM = Math.round(treeCount * 130 + meterCount);
+        summaryFormatted = `${treeCount} cây + ${meterCount}m ≈ ${totalM}m (${swatchCount} màu)`;
+      } else {
+        summaryFormatted = `${swatchCount} màu`;
+      }
+    }
+    // 4. Mặc định / Tiêu chuẩn: 1 cây = 130m
+    else {
+      formulaHint = 'Quy chuẩn Tiêu chuẩn: 1 cây = 130m';
+      if (treeCount > 0 && meterCount === 0 && kgCount === 0) {
+        const eqM = Math.round(treeCount * 130);
+        summaryFormatted = `${treeCount} cây ≈ ${eqM}m (${swatchCount} màu)`;
+      } else if (meterCount > 0 && treeCount === 0) {
+        summaryFormatted = `${meterCount}m (${swatchCount} màu)`;
+      } else if (treeCount > 0 && meterCount > 0) {
+        const totalM = Math.round(treeCount * 130 + meterCount);
+        summaryFormatted = `${treeCount} cây + ${meterCount}m ≈ ${totalM}m (${swatchCount} màu)`;
+      } else {
+        summaryFormatted = `${swatchCount} màu`;
+      }
+    }
+
+    return {
+      treeCount,
+      meterCount,
+      kgCount,
+      swatchCount,
+      fabricType,
+      formulaHint,
+      summaryFormatted
+    };
   }
 
   function updateSidebarOrderSummary() {
     const sumBadge = document.getElementById('live-order-sum-badge');
     const sumTextEl = document.getElementById('live-order-sum-text');
+    const formulaHintEl = document.getElementById('live-order-formula-hint');
     const headerCounter = document.getElementById('header-order-counter');
     const headerCounterText = document.getElementById('header-counter-text');
+    const fabricFormulaSelect = document.getElementById('fabric-formula-select');
+
+    if (fabricFormulaSelect && state.fabricFormula && fabricFormulaSelect.value !== state.fabricFormula) {
+      fabricFormulaSelect.value = state.fabricFormula;
+    }
 
     const summary = calculateOrderSummary();
     if (summary.swatchCount === 0) {
       if (sumBadge) sumBadge.textContent = '0 màu';
       if (sumTextEl) sumTextEl.textContent = 'Chưa chấm màu nào';
+      if (formulaHintEl) formulaHintEl.textContent = 'Quy chuẩn: Tự động theo loại vải';
       if (headerCounter) headerCounter.classList.remove('has-orders');
       if (headerCounterText) headerCounterText.textContent = '⚡ 0 màu';
       return;
     }
 
-    const parts = [];
-    if (summary.treeCount > 0) parts.push(`${summary.treeCount} cây`);
-    if (summary.meterCount > 0) parts.push(`${summary.meterCount}m`);
-    if (summary.kgCount > 0) parts.push(`${summary.kgCount}kg`);
-
-    const summaryStr = parts.length > 0 ? parts.join(' + ') : `${summary.swatchCount} mục`;
-
     if (sumBadge) sumBadge.textContent = `${summary.swatchCount} màu`;
-    if (sumTextEl) sumTextEl.textContent = `${summaryStr} (${summary.swatchCount} màu)`;
+    if (sumTextEl) sumTextEl.textContent = summary.summaryFormatted;
+    if (formulaHintEl) formulaHintEl.textContent = summary.formulaHint;
 
     if (headerCounter && headerCounterText) {
       headerCounter.classList.add('has-orders');
-      const badgeParts = [];
-      if (summary.treeCount > 0) badgeParts.push(`${summary.treeCount} cây`);
-      if (summary.meterCount > 0) badgeParts.push(`${summary.meterCount}m`);
-      if (summary.kgCount > 0) badgeParts.push(`${summary.kgCount}kg`);
-      const sub = badgeParts.length ? ` • ${badgeParts.join('+')}` : '';
-      headerCounterText.textContent = `⚡ ${summary.swatchCount} màu${sub}`;
+      headerCounterText.textContent = `⚡ ${summary.summaryFormatted}`;
     }
+  }
+
+  // Lắng nghe sự kiện đổi công thức quy đổi chất liệu vải
+  const fabricFormulaSelectEl = document.getElementById('fabric-formula-select');
+  if (fabricFormulaSelectEl) {
+    fabricFormulaSelectEl.addEventListener('change', (e) => {
+      state.fabricFormula = e.target.value;
+      updateSidebarOrderSummary();
+      render();
+    });
   }
 
   // Click vào huy hiệu Live Order Counter ở Header sẽ scroll đến mục tổng kết

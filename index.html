@@ -185,10 +185,24 @@
               <h3>⚡ Tổng đơn đã chấm:</h3>
               <span class="badge-tag" id="live-order-sum-badge">0 màu</span>
             </div>
+
+            <!-- Bộ chọn công thức quy đổi chất liệu vải -->
+            <div class="fabric-formula-selector-row">
+              <span class="formula-label">Công thức vải:</span>
+              <select id="fabric-formula-select" class="fabric-formula-select" title="Chọn quy chuẩn quy đổi cho chất liệu vải đang chấm">
+                <option value="auto">🤖 Tự động theo tên vải</option>
+                <option value="to_voan">🪶 Vải Tơ / Voan (1 cây = 150 - 180m)</option>
+                <option value="thun">🧶 Vải Thun (1 cây = 25kg)</option>
+                <option value="kaki_cotton">🧵 Kaki / Cotton / Cứng (1 cây = 130m)</option>
+                <option value="standard">📐 Tiêu chuẩn (1 cây = 130m)</option>
+              </select>
+            </div>
+
             <div class="auto-sum-display">
               <span class="auto-sum-main" id="live-order-sum-text">Chưa chấm màu nào</span>
+              <span class="auto-sum-formula-hint" id="live-order-formula-hint">Quy chuẩn: Tự động theo loại vải</span>
             </div>
-            <label class="toggle-option" style="margin-top: 4px;">
+            <label class="toggle-option" style="margin-top: 6px;">
               <input type="checkbox" id="toggle-banner-sum" checked>
               <span class="toggle-switch"></span>
               <span class="toggle-label font-sm">In dòng Tổng đơn lên ảnh</span>
